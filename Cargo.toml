@@ -1,0 +1,21 @@
+[package]
+name = "torshare"
+version = "0.1.0"
+authors = ["kerle"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libtor = { git = "https://github.com/Jikstra/libtor.git", branch = "fix_log_to" }
+futures-util = "0.3.8"
+tokio = { version = "0.2", features = ["full"] }
+reqwest = { version = "0.10.10", features = ["socks"]}
+warp = "0.2"
+error-chain = "0.12.4"
+pretty_env_logger = "0.4.0"
+rand = "0.8.0"
+structopt = "0.3.21"
+paw = "1.0.0"
+url = "2.2.0"
+tempdir = "0.3.7"
