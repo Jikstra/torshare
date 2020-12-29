@@ -81,6 +81,13 @@ async fn download(url: Option<TorShareUrl>) {
                 );
             }
             DownloadState::DisconnectedError ( error ) => {
+                print_status_line(
+                    &Color::Red,
+                    format!(
+                        "Error: {}",
+                        error
+                    ),
+                );
 
             }
         };

@@ -52,7 +52,6 @@ pub async fn download_file(tor_socks5: TorSocks5, tor_share_url: TorShareUrl, cb
         .build().unwrap();
 
     let url = tor_share_url.to_url();
-    println!("{}\n", url);
     loop {
         let result = client.get(&url).send().await;
         if let Err(e) = result {
@@ -109,7 +108,13 @@ pub async fn download_file(tor_socks5: TorSocks5, tor_share_url: TorShareUrl, cb
         // bytes per second
         let mut speed: f64 = -1.0;
         let mut downloaded_bytes_last_second = 0;
-        while let Some(chunk) = result.chunk().await.unwrap() {
+        loop {
+            let chunk = result.chunk().await;
+            if let Err(e) = chunk {
+                cb(DownloadState::DisconnectedError(e.to_string()));
+                break
+            }
+            let chunk = chunk.unwrap().unwrap();
             let elapsed_time_as_secs = last_write.elapsed().as_secs_f64();
 
             downloaded_bytes_last_second = downloaded_bytes_last_second + chunk.len();
