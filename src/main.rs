@@ -13,7 +13,7 @@ use cli::{print_status_line, save_cursor_position, CliOptions, Color};
 use structopt::StructOpt;
 
 mod tor_utils;
-use tor_utils::{TorHiddenServiceConfig, TorSocks5, get_hidden_service_hostname, start_tor_hidden_service};
+use tor_utils::{TorDirectory, TorHiddenServiceConfig, TorSocks5, get_hidden_service_hostname, start_tor_hidden_service};
 
 mod tor_share_url;
 use tor_share_url::TorShareUrl;
@@ -32,11 +32,12 @@ async fn download(url: Option<TorShareUrl>) {
         return
     }
 
+    let tor_dir = TorDirectory::from_tempdir();
     let tor_share_url = url.unwrap();
-    let tor_socks5 = TorSocks5::start_background_on_random_port();
+    let tor_socks5 = TorSocks5::from_random_port();
 
     //dbg!("Ready!");
-    download_file(tor_socks5, tor_share_url, |download_state| {
+    download_file(Rc::clone(&tor_dir), Rc::clone(&tor_socks5), tor_share_url, |download_state| {
         save_cursor_position();
         match download_state {
             DownloadState::ConnectingWaitingForTor => {
@@ -45,7 +46,7 @@ async fn download(url: Option<TorShareUrl>) {
             DownloadState::ConnectingWaitingForProxy => {
                 print_status_line(
                     &Color::Yellow,
-                    "Connecting to tor network... Waiting for proxy...",
+                    format!("Connecting to tor network... Waiting for proxy... {}", tor_socks5.port),
                 );
             }
             DownloadState::ConnectedWaitingForPeer => {
@@ -99,15 +100,17 @@ async fn download(url: Option<TorShareUrl>) {
 async fn share(file_or_folder: String) {
     save_cursor_position();
     print_status_line(&Color::Yellow, "Starting Tor");
-    let (tmp_tor_dir, hidden_service_config) = TorHiddenServiceConfig::from_tmp_dir_and_random_port();
+    let tor_dir = TorDirectory::from_tempdir();
+
+    let hidden_service_config = TorHiddenServiceConfig::from_random_port();
 
     let _torthread =
-        start_tor_hidden_service(Rc::clone(&hidden_service_config));
+        start_tor_hidden_service(Rc::clone(&tor_dir), Rc::clone(&hidden_service_config));
     //dbg!("Ready!");
     //print!("[DEBUG] Tempdir: {}", tmp_tor_dir.path().to_str().unwrap());
 
     let hidden_service_hostname =
-        get_hidden_service_hostname(Rc::clone(&hidden_service_config).dir_tor_hidden_service.as_str())
+        get_hidden_service_hostname(Rc::clone(&tor_dir))
             .unwrap_or("Error".to_string());
 
     let tor_share_url = TorShareUrl::random_path(hidden_service_hostname);
@@ -122,7 +125,7 @@ async fn share(file_or_folder: String) {
         ),
     );
     ctrlc.race(share).await;
-    drop(tmp_tor_dir);
+    tor_dir.drop_if_temp();
     //tmp_tor_dir.close().unwrap();
     print_status_line(&Color::Red, "Stopped sharing\n");
 

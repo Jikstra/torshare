@@ -7,7 +7,7 @@ use std::{
 };
 use std::{thread, time};
 
-use crate::{cli::{print_status_line, save_cursor_position, Color}, tor_share_url::{self, TorShareUrl}, tor_utils::{TorSocks5, start_tor_socks5}};
+use crate::{cli::{print_status_line, save_cursor_position, Color}, tor_share_url::{self, TorShareUrl}, tor_utils::{TorDirectory, TorSocks5, start_tor_socks5}};
 use crate::SOCKS5_PORT;
 use error_chain::error_chain;
 use reqwest::header::CONTENT_LENGTH;
@@ -44,7 +44,8 @@ error_chain! {
          ToStrError(reqwest::header::ToStrError);
      }
 }
-pub async fn download_file(tor_socks5: TorSocks5, tor_share_url: TorShareUrl, cb: fn(DownloadState)) {
+pub async fn download_file(tor_dir: Rc<TorDirectory>, tor_socks5: Rc<TorSocks5>, tor_share_url: TorShareUrl, cb: impl Fn(DownloadState)) {
+    start_tor_socks5(tor_dir, Rc::clone(&tor_socks5));
     cb(DownloadState::ConnectingWaitingForTor);
     let socks5_url = tor_socks5.to_string();
     let client = reqwest::Client::builder()
