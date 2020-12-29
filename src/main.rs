@@ -97,7 +97,7 @@ async fn download_file(hidden_service: String, path: String) -> Result<()> {
         cursor::SavePosition,
         terminal::Clear(terminal::ClearType::UntilNewLine),
         SetForegroundColor(Color::Yellow),
-        Print("⚫"),
+        Print("⬤"),
         ResetColor,
         Print(" Connecting to tor network..."),
     );
@@ -114,7 +114,7 @@ async fn download_file(hidden_service: String, path: String) -> Result<()> {
                     cursor::SavePosition,
                     terminal::Clear(terminal::ClearType::UntilNewLine),
                     SetForegroundColor(Color::Yellow),
-                    Print("⚫"),
+                    Print("⬤"),
                     ResetColor,
                     Print(" Connecting to tor network... Waiting for proxy..."),
                 );
@@ -128,7 +128,7 @@ async fn download_file(hidden_service: String, path: String) -> Result<()> {
                     cursor::SavePosition,
                     terminal::Clear(terminal::ClearType::UntilNewLine),
                     SetForegroundColor(Color::Yellow),
-                    Print("⚫"),
+                    Print("⬤"),
                     ResetColor,
                     Print(format!(" Waiting for sharing side to come online...")),
                 );
@@ -143,7 +143,7 @@ async fn download_file(hidden_service: String, path: String) -> Result<()> {
             cursor::SavePosition,
             terminal::Clear(terminal::ClearType::UntilNewLine),
             SetForegroundColor(Color::Green),
-            Print("⚫"),
+            Print("⬤"),
             ResetColor,
             Print(" Retrieving file information..."),
         );
@@ -176,7 +176,7 @@ async fn download_file(hidden_service: String, path: String) -> Result<()> {
             cursor::SavePosition,
             terminal::Clear(terminal::ClearType::UntilNewLine),
             SetForegroundColor(Color::Green),
-            Print("⚫"),
+            Print("⬤"),
             ResetColor,
             Print(format!(" {}: {}% of {}mb", &fname, 0, file_size)),
         );
@@ -192,7 +192,7 @@ async fn download_file(hidden_service: String, path: String) -> Result<()> {
                     cursor::SavePosition,
                     terminal::Clear(terminal::ClearType::UntilNewLine),
                     SetForegroundColor(Color::Green),
-                    Print("⚫"),
+                    Print("⬤"),
                     ResetColor,
                     Print(format!(" {}: Downloaded {}bytes", fname, downloaded_bytes))
                 );
@@ -204,7 +204,7 @@ async fn download_file(hidden_service: String, path: String) -> Result<()> {
                     cursor::RestorePosition,
                     terminal::Clear(terminal::ClearType::UntilNewLine),
                     SetForegroundColor(Color::Green),
-                    Print("⚫"),
+                    Print("⬤"),
                     ResetColor,
                     Print(format!(" {}: {:.1}% of {}mb", fname, percent, file_size))
                 );
@@ -315,7 +315,7 @@ async fn main() {
                         cursor::RestorePosition,
                         terminal::Clear(terminal::ClearType::UntilNewLine),
                         SetForegroundColor(Color::Red),
-                        Print("⚫"),
+                        Print("⬤"),
                         ResetColor,
                         Print(" Invalid URL\n"),
                     );
@@ -328,7 +328,7 @@ async fn main() {
                 stdout(),
                 cursor::SavePosition,
                 SetForegroundColor(Color::Yellow),
-                Print("⚫"),
+                Print("⬤"),
                 ResetColor,
                 Print("Starting Tor")
             );
@@ -350,7 +350,7 @@ async fn main() {
                 cursor::RestorePosition,
                 cursor::SavePosition,
                 SetForegroundColor(Color::Green),
-                Print("⚫"),
+                Print("⬤"),
                 ResetColor,
                 Print(format!(" Sharing now! Run following command to download:\n\ttorshare download {}/{}\n", hidden_service, path))
             );
@@ -362,7 +362,7 @@ async fn main() {
                 cursor::RestorePosition,
                 terminal::Clear(terminal::ClearType::UntilNewLine),
                 SetForegroundColor(Color::Red),
-                Print("⚫"),
+                Print("⬤"),
                 ResetColor,
                 Print(" Stopped sharing\n"),
             );

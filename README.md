@@ -1,6 +1,6 @@
 # TorShare
 
-[![asciicast](https://asciinema.org/a/KfWGca2vjrTB7q7wvtvMvpz01.svg)](https://asciinema.org/a/KfWGca2vjrTB7q7wvtvMvpz01)
+[![asciicast](https://asciinema.org/a/381610.svg)](https://asciinema.org/a/381610)
 
 A CLI tool allowing the user to share files anonymously over the tor network. A similiar and more production ready solution is [OnionShare](https://onionshare.org/). Currently this project is a proof-of-concept and not recommended in productional use, especially not when the data is important/anonymity is not only optional but needed.
 
