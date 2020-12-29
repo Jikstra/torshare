@@ -80,7 +80,7 @@ pub fn start_tor_hidden_service(tor_dir: Rc<TorDirectory>, config: Rc<TorHiddenS
             LogLevel::Notice,
             LogDestination::File("/dev/null".into()),
         ))
-        .flag(TorFlag::Quiet())
+        //.flag(TorFlag::Quiet())
         .start_background();
     return torthread;
 }

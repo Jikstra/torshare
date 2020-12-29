@@ -19,7 +19,7 @@ mod tor_share_url;
 use tor_share_url::TorShareUrl;
 
 mod share;
-use share::share_file;
+use share::{ShareState, share_file};
 
 mod download_file;
 use download_file::{DownloadState, download_file};
@@ -96,37 +96,36 @@ async fn download(url: Option<TorShareUrl>) {
 }
 
 async fn share(file_or_folder: String) {
-    save_cursor_position();
-    print_status_line(&Color::Yellow, "Starting Tor");
-    let tor_dir = TorDirectory::from_tempdir();
 
+    let tor_dir = TorDirectory::from_tempdir();
     let hidden_service_config = TorHiddenServiceConfig::from_random_port();
 
-    let _torthread =
-        start_tor_hidden_service(Rc::clone(&tor_dir), Rc::clone(&hidden_service_config));
-    //dbg!("Ready!");
-    //print!("[DEBUG] Tempdir: {}", tmp_tor_dir.path().to_str().unwrap());
+    save_cursor_position();
+    share_file(Rc::clone(&tor_dir), Rc::clone(&hidden_service_config), file_or_folder, |share_state| {
+        match share_state {
+            ShareState::ConnectingStartingTor => {
+                print_status_line(&Color::Yellow, "Starting Tor");
 
-    let hidden_service_hostname =
-        get_hidden_service_hostname(Rc::clone(&tor_dir))
-            .unwrap_or("Error".to_string());
+            },
+            ShareState::OnlineSharingNow(tor_share_url) => {
+                print_status_line(
+                    &Color::Green,
+                    format!(
+                        "Sharing now! Run following command to download: \"torshare download {}\"",
+                        tor_share_url.to_string()
+                    ),
+                );
+            },
+            ShareState::OfflineStopped => {
+                print_status_line(&Color::Red, "Stopped sharing\n");
 
-    let tor_share_url = TorShareUrl::random_path(hidden_service_hostname);
-    let share = share_file(Rc::clone(&hidden_service_config), file_or_folder.into(), tor_share_url.path.clone());
+            },
+            ShareState::OfflineError(err) => {
+                print_status_line(&Color::Red, format!("Error: {}\n", err));
 
-    let ctrlc = CtrlC::new().expect("cannot create Ctrl+C handler?");
-    print_status_line(
-        &Color::Green,
-        format!(
-            "Sharing now! Run following command to download: \"torshare download {}\"",
-            tor_share_url.to_string()
-        ),
-    );
-    ctrlc.race(share).await;
-    tor_dir.drop_if_temp();
-    //tmp_tor_dir.close().unwrap();
-    print_status_line(&Color::Red, "Stopped sharing\n");
-
+            }
+        }
+    }).await;
 }
 
 #[tokio::main]
