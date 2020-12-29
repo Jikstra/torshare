@@ -1,14 +1,14 @@
 use reqwest;
-use termion::cursor::Down;
-use std::{io::Write, rc::Rc};
+use std::{rc::Rc};
 use std::{
     fs::File,
-    time::{Instant, SystemTime},
+    time::{Instant},
 };
+
+use std::io::Write;
 use std::{thread, time};
 
-use crate::{cli::{print_status_line, save_cursor_position, Color}, tor_share_url::{self, TorShareUrl}, tor_utils::{TorDirectory, TorSocks5, start_tor_socks5}};
-use crate::SOCKS5_PORT;
+use crate::{tor_share_url::{TorShareUrl}, tor_utils::{TorDirectory, TorSocks5, start_tor_socks5}};
 use error_chain::error_chain;
 use reqwest::header::CONTENT_LENGTH;
 
@@ -121,6 +121,7 @@ pub async fn download_file(tor_dir: Rc<TorDirectory>, tor_socks5: Rc<TorSocks5>,
                 break
             }
             let chunk = chunk.unwrap();
+            dest.write(&chunk);
             let elapsed_time_as_secs = last_write.elapsed().as_secs_f64();
 
             downloaded_bytes_last_second = downloaded_bytes_last_second + chunk.len();

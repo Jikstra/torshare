@@ -24,8 +24,6 @@ use share::share_file;
 mod download_file;
 use download_file::{DownloadState, download_file};
 
-const SOCKS5_PORT: u16 = 1997;
-
 async fn download(url: Option<TorShareUrl>) {
     if url.is_none() {
         print_status_line(&Color::Red, "Error: Not a valid torshare URL\n");
