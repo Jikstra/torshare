@@ -20,7 +20,7 @@ mod share;
 use share::share_file;
 
 mod download_file;
-use download_file::download_file;
+use download_file::{DownloadState, download_file};
 
 const SOCKS5_PORT: u16 = 1997;
 
@@ -36,7 +36,56 @@ async fn main() {
                 Some(tor_share_url) => {
                     let _torthread = start_tor_socks5(SOCKS5_PORT);
                     //dbg!("Ready!");
-                    download_file(tor_share_url.hostname, tor_share_url.path).await;
+                    download_file(tor_share_url.hostname, tor_share_url.path, |download_state| {
+                        match download_state {
+                            DownloadState::ConnectingWaitingForTor => {
+                                print_status_line(&Color::Yellow, "Connecting to tor network...");
+                            },
+                            DownloadState::ConnectingWaitingForProxy => {
+                                print_status_line(
+                                    &Color::Yellow,
+                                    "Connecting to tor network... Waiting for proxy...",
+                                );
+                            }
+                            DownloadState::ConnectedWaitingForPeer => {
+                                print_status_line(
+                                    &Color::Yellow,
+                                    format!("Waiting for sharing side to come online..."),
+                                );
+                            }
+                            DownloadState::ConnectedRetrievingFileInformation => {
+                                print_status_line(&Color::Green, "Retrieving file information...");
+                            }
+                            DownloadState::ConnectedRetrievedFileInformation ( file_information ) => {
+                                print_status_line(
+                                    &Color::Green,
+                                    format!(" {}: {}% of {}mb", file_information.name, 0, file_information.size),
+                                );
+                            }
+                            DownloadState::ConnectedDownloading ( file_information, download_progress ) => {
+                                if download_progress.percent == -1.0 {
+                                    print_status_line(
+                                        &Color::Green,
+                                        format!(
+                                            "{}: {:.3}mb of unknown {:.3}mb/s",
+                                            file_information.name, download_progress.downloaded_megabytes, download_progress.speed
+                                        ),
+                                    );
+                                    return
+                                }
+                                print_status_line(
+                                    &Color::Green,
+                                    format!(
+                                        "{}: {:.3}mb of {:.3}mb {:.1}% {:.3}mb/s",
+                                        file_information.name, download_progress.downloaded_megabytes, file_information.size, download_progress.percent, download_progress.speed
+                                    ),
+                                );
+                            }
+                            DownloadState::DisconnectedError ( error ) => {
+
+                            }
+                        };
+                    }).await;
                 }
                 None => {
                     print_status_line(&Color::Red, "Invalid URL\n");

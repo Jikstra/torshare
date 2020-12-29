@@ -1,5 +1,6 @@
 use reqwest;
-use std::io::Write;
+use termion::cursor::Down;
+use std::{io::Write, rc::Rc};
 use std::{
     fs::File,
     time::{Instant, SystemTime},
@@ -11,6 +12,27 @@ use crate::SOCKS5_PORT;
 use error_chain::error_chain;
 use reqwest::header::CONTENT_LENGTH;
 
+pub struct FileInformation {
+    pub name: String,
+    pub size: f64
+}
+
+pub struct DownloadProgress {
+    pub downloaded_megabytes: f64,
+    pub percent: f32,
+    pub speed: f64
+}
+
+pub enum DownloadState {
+    ConnectingWaitingForTor,
+    ConnectingWaitingForProxy,
+    ConnectedWaitingForPeer,
+    ConnectedRetrievingFileInformation,
+    ConnectedRetrievedFileInformation(Rc<FileInformation>),
+    ConnectedDownloading(Rc<FileInformation>, DownloadProgress),
+    DisconnectedError(String)
+}
+
 error_chain! {
      foreign_links {
          Io(std::io::Error);
@@ -19,13 +41,13 @@ error_chain! {
          ToStrError(reqwest::header::ToStrError);
      }
 }
-pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
+pub async fn download_file(hidden_service: String, path: String, cb: fn(DownloadState)) {
     let socks5_url = format!("socks5h://127.0.0.1:{}", SOCKS5_PORT);
     let client = reqwest::Client::builder()
-        .proxy(reqwest::Proxy::all(&socks5_url)?)
-        .build()?;
+        .proxy(reqwest::Proxy::all(&socks5_url).unwrap())
+        .build().unwrap();
     save_cursor_position();
-    print_status_line(&Color::Yellow, "Connecting to tor network...");
+    cb(DownloadState::ConnectingWaitingForTor);
 
     let url = format!("http://{}/{}", hidden_service, path);
     loop {
@@ -33,22 +55,16 @@ pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
         if let Err(e) = result {
             let host_offline = e.to_string().contains("Host unreachable");
             if !host_offline {
-                print_status_line(
-                    &Color::Yellow,
-                    "Connecting to tor network... Waiting for proxy...",
-                );
+                cb(DownloadState::ConnectingWaitingForProxy);
                 thread::sleep(time::Duration::from_millis(50));
                 continue;
             } else {
-                print_status_line(
-                    &Color::Yellow,
-                    format!("Waiting for sharing side to come online..."),
-                );
+                cb(DownloadState::ConnectedWaitingForPeer);
                 thread::sleep(time::Duration::from_millis(50));
                 continue;
             };
         }
-        print_status_line(&Color::Green, "Retrieving file information...");
+        cb(DownloadState::ConnectedRetrievingFileInformation);
 
         let mut result = result.unwrap();
         let fname = if let Some(content_disposition) = result.headers().get("Content-Disposition") {
@@ -74,24 +90,23 @@ pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
         let file_size: f64 = result
             .headers()
             .get(CONTENT_LENGTH)
-            .ok_or("0")?
-            .to_str()?
+            .ok_or("0").unwrap()
+            .to_str().unwrap()
             .to_string()
             .parse::<f64>()
             .unwrap()
             / 1000000.0;
 
-        print_status_line(
-            &Color::Green,
-            format!(" {}: {}% of {}mb", &fname, 0, file_size),
-        );
+        let file_information = Rc::new(FileInformation { name: fname, size: file_size });
+
+        cb(DownloadState::ConnectedRetrievedFileInformation(Rc::clone(&file_information)));
 
         let mut downloaded_megabytes: f64 = 0.0;
         let mut last_write = Instant::now();
         // bytes per second
         let mut speed: f64 = -1.0;
         let mut downloaded_bytes_last_second = 0;
-        while let Some(chunk) = result.chunk().await? {
+        while let Some(chunk) = result.chunk().await.unwrap() {
             let elapsed_time_as_secs = last_write.elapsed().as_secs_f64();
 
             downloaded_bytes_last_second = downloaded_bytes_last_second + chunk.len();
@@ -107,25 +122,15 @@ pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
 
             downloaded_megabytes = downloaded_megabytes + chunk_size_as_megabyte;
             if file_size == 0.0 {
-                print_status_line(
-                    &Color::Green,
-                    format!(
-                        "{}: Downloaded {:.3}mb {:.3}mb {:.3}mb/s",
-                        fname, downloaded_megabytes, file_size, speed
-                    ),
-                );
+                cb(DownloadState::ConnectedDownloading(Rc::clone(&file_information), DownloadProgress { downloaded_megabytes, percent: -1.0, speed}));
+
             } else {
                 let percent = downloaded_megabytes as f32 / file_size as f32 * 100.0;
-                print_status_line(
-                    &Color::Green,
-                    format!(
-                        "{}: {:.3}mb of {:.3}mb {:.1}% {:.3}mb/s",
-                        fname, downloaded_megabytes, file_size, percent, speed
-                    ),
-                );
+
+                cb(DownloadState::ConnectedDownloading(Rc::clone(&file_information), DownloadProgress { downloaded_megabytes, percent, speed}));
             }
         }
         println!("\n");
-        break Ok(());
+        break;
     }
 }
