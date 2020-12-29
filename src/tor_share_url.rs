@@ -38,4 +38,8 @@ impl TorShareUrl {
     pub fn to_string(&self) -> String {
         format!("{}/{}", &self.hostname, &self.path)
     }
+
+    pub fn to_url(&self) -> String {
+        format!("http://{}/{}", &self.hostname, &self.path)
+    }
 }

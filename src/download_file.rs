@@ -7,10 +7,12 @@ use std::{
 };
 use std::{thread, time};
 
-use crate::cli::{print_status_line, save_cursor_position, Color};
+use crate::{cli::{print_status_line, save_cursor_position, Color}, tor_share_url::{self, TorShareUrl}, tor_utils::{TorSocks5, start_tor_socks5}};
 use crate::SOCKS5_PORT;
 use error_chain::error_chain;
 use reqwest::header::CONTENT_LENGTH;
+
+
 
 pub struct FileInformation {
     pub name: String,
@@ -33,6 +35,7 @@ pub enum DownloadState {
     DisconnectedError(String)
 }
 
+
 error_chain! {
      foreign_links {
          Io(std::io::Error);
@@ -41,15 +44,16 @@ error_chain! {
          ToStrError(reqwest::header::ToStrError);
      }
 }
-pub async fn download_file(hidden_service: String, path: String, cb: fn(DownloadState)) {
-    let socks5_url = format!("socks5h://127.0.0.1:{}", SOCKS5_PORT);
+pub async fn download_file(tor_socks5: TorSocks5, tor_share_url: TorShareUrl, cb: fn(DownloadState)) {
+    cb(DownloadState::ConnectingWaitingForTor);
+    let _torthread = start_tor_socks5(SOCKS5_PORT);
+
+    let socks5_url = tor_socks5.to_string();
     let client = reqwest::Client::builder()
         .proxy(reqwest::Proxy::all(&socks5_url).unwrap())
         .build().unwrap();
-    save_cursor_position();
-    cb(DownloadState::ConnectingWaitingForTor);
 
-    let url = format!("http://{}/{}", hidden_service, path);
+    let url = tor_share_url.to_url();
     loop {
         let result = client.get(&url).send().await;
         if let Err(e) = result {
@@ -84,7 +88,7 @@ pub async fn download_file(hidden_service: String, path: String, cb: fn(Download
             None
         };
 
-        let fname: String = fname.unwrap_or_else(|| format!("{}.file", path));
+        let fname: String = fname.unwrap_or_else(|| format!("{}.file", tor_share_url.path));
         let mut dest = File::create(&fname).unwrap();
 
         let file_size: f64 = result
