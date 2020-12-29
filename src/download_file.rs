@@ -46,14 +46,13 @@ error_chain! {
 }
 pub async fn download_file(tor_socks5: TorSocks5, tor_share_url: TorShareUrl, cb: fn(DownloadState)) {
     cb(DownloadState::ConnectingWaitingForTor);
-    let _torthread = start_tor_socks5(SOCKS5_PORT);
-
     let socks5_url = tor_socks5.to_string();
     let client = reqwest::Client::builder()
         .proxy(reqwest::Proxy::all(&socks5_url).unwrap())
         .build().unwrap();
 
     let url = tor_share_url.to_url();
+    println!("{}\n", url);
     loop {
         let result = client.get(&url).send().await;
         if let Err(e) = result {

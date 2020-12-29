@@ -42,7 +42,7 @@ pub fn start_tor_socks5(socks5_port: u16) -> JoinHandle<std::result::Result<u8, 
         .flag(TorFlag::ControlPort(0))
         .flag(TorFlag::SocksPort(socks5_port))
         //.flag(TorFlag::LogTo(LogLevel::Err, LogDestination::Stderr))
-        //.flag(TorFlag::Quiet())
+        .flag(TorFlag::Quiet())
         .start_background();
     return torthread;
 }
@@ -81,9 +81,9 @@ impl TorSocks5 {
     }
 
     pub fn start_background_on_random_port() -> Self {
-        //let rand_port = random_port();
-        let rand_port = 1997;
-        println!("Port {}\n\n\n\n", rand_port);
+        let rand_port = random_port();
+        //let rand_port = 1997;
+        //println!("Port {}\n\n\n\n", rand_port);
         TorSocks5::start_background(rand_port)
     }
 
