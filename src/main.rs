@@ -22,7 +22,7 @@ use share::share_file;
 mod download_file;
 use download_file::download_file;
 
-const SOCKS5_PORT: u16 = 1996;
+const SOCKS5_PORT: u16 = 1997;
 
 #[tokio::main]
 async fn main() {

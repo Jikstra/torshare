@@ -1,6 +1,9 @@
 use reqwest;
-use std::fs::File;
 use std::io::Write;
+use std::{
+    fs::File,
+    time::{Instant, SystemTime},
+};
 use std::{thread, time};
 
 use crate::cli::{print_status_line, save_cursor_position, Color};
@@ -68,33 +71,57 @@ pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
         let fname: String = fname.unwrap_or_else(|| format!("{}.file", path));
         let mut dest = File::create(&fname).unwrap();
 
-        let file_size: usize = result
+        let file_size: f64 = result
             .headers()
             .get(CONTENT_LENGTH)
             .ok_or("0")?
             .to_str()?
             .to_string()
-            .parse()?;
+            .parse::<f64>()
+            .unwrap()
+            / 1000000.0;
 
         print_status_line(
             &Color::Green,
             format!(" {}: {}% of {}mb", &fname, 0, file_size),
         );
 
-        let mut downloaded_bytes: usize = 0;
+        let mut downloaded_megabytes: f64 = 0.0;
+        let mut last_write = Instant::now();
+        // bytes per second
+        let mut speed: f64 = -1.0;
+        let mut downloaded_bytes_last_second = 0;
         while let Some(chunk) = result.chunk().await? {
-            dest.write(&chunk);
-            downloaded_bytes = downloaded_bytes + chunk.len();
-            if file_size == 0 {
+            let elapsed_time_as_secs = last_write.elapsed().as_secs_f64();
+
+            downloaded_bytes_last_second = downloaded_bytes_last_second + chunk.len();
+            if elapsed_time_as_secs > 0.5 {
+                speed = downloaded_bytes_last_second as f64 / 1000000.0 / elapsed_time_as_secs;
+                downloaded_bytes_last_second = 0;
+                last_write = Instant::now();
+            } else if speed == -1.0 {
+                speed = downloaded_bytes_last_second as f64 / 1000000.0 / elapsed_time_as_secs;
+            }
+            let chunk_size_as_megabyte = chunk.len() as f64 / 1000000.0;
+            let megabytes_per_second = chunk_size_as_megabyte / elapsed_time_as_secs / 10.0;
+
+            downloaded_megabytes = downloaded_megabytes + chunk_size_as_megabyte;
+            if file_size == 0.0 {
                 print_status_line(
                     &Color::Green,
-                    format!("{}: Downloaded {}bytes", fname, downloaded_bytes),
+                    format!(
+                        "{}: Downloaded {:.3}mb {:.3}mb {:.3}mb/s",
+                        fname, downloaded_megabytes, file_size, speed
+                    ),
                 );
             } else {
-                let percent = (downloaded_bytes as f32 / file_size as f32) * 100.0;
+                let percent = downloaded_megabytes as f32 / file_size as f32 * 100.0;
                 print_status_line(
                     &Color::Green,
-                    format!("{}: {:.1}% of {}mb", fname, percent, file_size),
+                    format!(
+                        "{}: {:.3}mb of {:.3}mb {:.1}% {:.3}mb/s",
+                        fname, downloaded_megabytes, file_size, percent, speed
+                    ),
                 );
             }
         }

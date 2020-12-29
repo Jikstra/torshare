@@ -39,7 +39,7 @@ pub fn print_status_line<S: AsRef<str>>(color: &dyn termion::color::Color, text:
         format!(
             "{}{}{}⬤{} {}",
             termion::cursor::Restore,
-            termion::clear::CurrentLine,
+            termion::clear::AfterCursor,
             termion::color::Fg(color),
             termion::color::Fg(termion::color::Reset),
             text
