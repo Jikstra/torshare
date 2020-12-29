@@ -29,7 +29,7 @@ pub struct GeneralOptions {
 }
 
 pub fn save_cursor_position() {
-    print!("{}", termion::cursor::Save);
+    //print!("{}", termion::cursor::Save);
 }
 
 pub fn print_status_line<S: AsRef<str>>(color: &dyn termion::color::Color, text: S) {
@@ -37,9 +37,9 @@ pub fn print_status_line<S: AsRef<str>>(color: &dyn termion::color::Color, text:
 
     stdout().write_all(
         format!(
-            "{}{}{}⬤{} {}",
-            termion::cursor::Restore,
-            termion::clear::AfterCursor,
+            //"{}{}{}{}⬤{} {}\n",
+            "{}⬤{} {}\n",
+            //termion::cursor::Up(1), termion::cursor::Left(0), termion::clear::AfterCursor,
             termion::color::Fg(color),
             termion::color::Fg(termion::color::Reset),
             text

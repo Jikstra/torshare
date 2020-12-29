@@ -1,16 +1,18 @@
 use reqwest;
-use termion::cursor::Down;
-use std::{io::Write, rc::Rc};
+use std::{rc::Rc};
 use std::{
     fs::File,
-    time::{Instant, SystemTime},
+    time::{Instant},
 };
+
+use std::io::Write;
 use std::{thread, time};
 
-use crate::cli::{print_status_line, save_cursor_position, Color};
-use crate::SOCKS5_PORT;
+use crate::{tor_share_url::{TorShareUrl}, tor_utils::{TorDirectory, TorSocks5, start_tor_socks5}};
 use error_chain::error_chain;
 use reqwest::header::CONTENT_LENGTH;
+
+
 
 pub struct FileInformation {
     pub name: String,
@@ -33,6 +35,7 @@ pub enum DownloadState {
     DisconnectedError(String)
 }
 
+
 error_chain! {
      foreign_links {
          Io(std::io::Error);
@@ -41,20 +44,21 @@ error_chain! {
          ToStrError(reqwest::header::ToStrError);
      }
 }
-pub async fn download_file(hidden_service: String, path: String, cb: fn(DownloadState)) {
-    let socks5_url = format!("socks5h://127.0.0.1:{}", SOCKS5_PORT);
+pub async fn download_file(tor_dir: Rc<TorDirectory>, tor_socks5: Rc<TorSocks5>, tor_share_url: TorShareUrl, cb: impl Fn(DownloadState)) {
+    start_tor_socks5(tor_dir, Rc::clone(&tor_socks5));
+    cb(DownloadState::ConnectingWaitingForTor);
+    let socks5_url = tor_socks5.to_string();
     let client = reqwest::Client::builder()
         .proxy(reqwest::Proxy::all(&socks5_url).unwrap())
         .build().unwrap();
-    save_cursor_position();
-    cb(DownloadState::ConnectingWaitingForTor);
 
-    let url = format!("http://{}/{}", hidden_service, path);
+    let url = tor_share_url.to_url();
     loop {
         let result = client.get(&url).send().await;
         if let Err(e) = result {
-            let host_offline = e.to_string().contains("Host unreachable");
-            if !host_offline {
+            //println!("{}\n", e);
+            let socks5_unreachable = e.to_string().contains("Proxy server unreachable");
+            if socks5_unreachable {
                 cb(DownloadState::ConnectingWaitingForProxy);
                 thread::sleep(time::Duration::from_millis(50));
                 continue;
@@ -84,7 +88,7 @@ pub async fn download_file(hidden_service: String, path: String, cb: fn(Download
             None
         };
 
-        let fname: String = fname.unwrap_or_else(|| format!("{}.file", path));
+        let fname: String = fname.unwrap_or_else(|| format!("{}.file", tor_share_url.path));
         let mut dest = File::create(&fname).unwrap();
 
         let file_size: f64 = result
@@ -106,7 +110,18 @@ pub async fn download_file(hidden_service: String, path: String, cb: fn(Download
         // bytes per second
         let mut speed: f64 = -1.0;
         let mut downloaded_bytes_last_second = 0;
-        while let Some(chunk) = result.chunk().await.unwrap() {
+        loop {
+            let chunk = result.chunk().await;
+            if let Err(e) = chunk {
+                cb(DownloadState::DisconnectedError(e.to_string()));
+                break
+            }
+            let chunk = chunk.unwrap();
+            if chunk.is_none() {
+                break
+            }
+            let chunk = chunk.unwrap();
+            dest.write(&chunk);
             let elapsed_time_as_secs = last_write.elapsed().as_secs_f64();
 
             downloaded_bytes_last_second = downloaded_bytes_last_second + chunk.len();
@@ -118,7 +133,6 @@ pub async fn download_file(hidden_service: String, path: String, cb: fn(Download
                 speed = downloaded_bytes_last_second as f64 / 1000000.0 / elapsed_time_as_secs;
             }
             let chunk_size_as_megabyte = chunk.len() as f64 / 1000000.0;
-            let megabytes_per_second = chunk_size_as_megabyte / elapsed_time_as_secs / 10.0;
 
             downloaded_megabytes = downloaded_megabytes + chunk_size_as_megabyte;
             if file_size == 0.0 {
