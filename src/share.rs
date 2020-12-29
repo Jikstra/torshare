@@ -1,5 +1,9 @@
+use std::rc::Rc;
+
 use futures::Future;
 use warp::Filter;
+
+use crate::tor_utils::TorHiddenServiceConfig;
 
 pub fn lossy_file_name(file: &warp::fs::File) -> Option<String> {
     let file_name = file
@@ -11,7 +15,7 @@ pub fn lossy_file_name(file: &warp::fs::File) -> Option<String> {
     Some(file_name.into())
 }
 
-pub fn share_file(path: String, id: String) -> impl Future<Output = ()> {
+pub fn share_file(tor_hidden_service_config: Rc<TorHiddenServiceConfig>, path: String, id: String) -> impl Future<Output = ()> {
     pretty_env_logger::init();
 
     //println!("Serving file {} under /{}", path, id);
@@ -33,5 +37,5 @@ pub fn share_file(path: String, id: String) -> impl Future<Output = ()> {
 
     //dbg!("Starting http server");
 
-    warp::serve(routes).run(([127, 0, 0, 1], 8080))
+    warp::serve(routes).run(([127, 0, 0, 1], tor_hidden_service_config.local_port))
 }

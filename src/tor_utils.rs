@@ -1,31 +1,64 @@
 use std::path::Path;
+use std::rc::Rc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 use libtor::{HiddenServiceVersion, LogDestination, LogLevel, Tor, TorAddress, TorFlag};
+use tempdir::TempDir;
 use std::fs::File;
 use std::io::prelude::*;
 
 
 use rand::prelude::*;
 
-pub fn start_tor_hidden_service(
-    dir_tor: &Path,
-    dir_tor_hs: &Path,
-    port: u16,
-) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
+pub struct TorHiddenServiceConfig {
+    pub local_host: Rc<String>,
+    pub local_port: u16,
+    pub dir_tor: Rc<String>,
+    pub dir_tor_hidden_service: Rc<String>
+}
+
+impl TorHiddenServiceConfig {
+    pub fn new(local_host: String, local_port: u16, dir_tor: String, dir_tor_hidden_service: String) -> Rc<Self> {
+        Rc::new(Self {
+            local_host: Rc::new(local_host),
+            local_port: local_port,
+            dir_tor: Rc::new(dir_tor),
+            dir_tor_hidden_service: Rc::new(dir_tor_hidden_service)
+        })
+    }
+    
+    pub fn from_tmp_dir_and_random_port() -> (TempDir, Rc<Self>) {
+        let rand_port = random_port();
+        let tmp_tor_dir = TempDir::new("tor-share").unwrap();
+        let tmp_tor_dir2: String = tmp_tor_dir.path().to_string_lossy().into();
+        let tmp_tor_dir_hs = tmp_tor_dir.path().join("hs");
+
+        return (
+            tmp_tor_dir,
+            Self::new(
+                "127.0.0.1".into(),
+                rand_port,
+                tmp_tor_dir2,
+                tmp_tor_dir_hs.to_str().unwrap().into()
+            )
+        )
+    }
+}
+
+pub fn start_tor_hidden_service(config: Rc<TorHiddenServiceConfig>) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
     let torthread = Tor::new()
-        .flag(TorFlag::DataDirectory(dir_tor.to_str().unwrap().into()))
+        .flag(TorFlag::DataDirectory(config.dir_tor.as_str().into()))
         .flag(TorFlag::SocksPort(0))
         .flag(TorFlag::ControlPort(0))
         .flag(TorFlag::HiddenServiceDir(
-            dir_tor_hs.to_str().unwrap().into(),
+            config.dir_tor_hidden_service.as_str().into(),
         ))
         .flag(TorFlag::HiddenServiceVersion(HiddenServiceVersion::V3))
         .flag(TorFlag::HiddenServicePort(
             TorAddress::Port(80),
-            Some(TorAddress::AddressPort("127.0.0.1".into(), port).into()).into(),
+            Some(TorAddress::AddressPort(config.local_host.as_str().into(), config.local_port).into()).into(),
         ))
         .flag(TorFlag::LogTo(
             LogLevel::Notice,
@@ -47,7 +80,7 @@ pub fn start_tor_socks5(socks5_port: u16) -> JoinHandle<std::result::Result<u8, 
     return torthread;
 }
 
-pub fn get_hidden_service_hostname(hidden_service_dir: String) -> std::io::Result<String> {
+pub fn get_hidden_service_hostname(hidden_service_dir: &str) -> std::io::Result<String> {
     let file_name = format!("{}/hostname", hidden_service_dir);
     let mut file = File::open(file_name);
 

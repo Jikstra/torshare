@@ -1,6 +1,8 @@
 #![feature(str_split_once)]
 
 extern crate tempdir;
+use std::rc::Rc;
+
 use tempdir::TempDir;
 
 use async_ctrlc::CtrlC;
@@ -11,7 +13,7 @@ use cli::{print_status_line, save_cursor_position, CliOptions, Color};
 use structopt::StructOpt;
 
 mod tor_utils;
-use tor_utils::{TorSocks5, get_hidden_service_hostname, start_tor_hidden_service};
+use tor_utils::{TorHiddenServiceConfig, TorSocks5, get_hidden_service_hostname, start_tor_hidden_service};
 
 mod tor_share_url;
 use tor_share_url::TorShareUrl;
@@ -94,6 +96,38 @@ async fn download(url: Option<TorShareUrl>) {
     }).await;
 }
 
+async fn share(file_or_folder: String) {
+    save_cursor_position();
+    print_status_line(&Color::Yellow, "Starting Tor");
+    let (tmp_tor_dir, hidden_service_config) = TorHiddenServiceConfig::from_tmp_dir_and_random_port();
+
+    let _torthread =
+        start_tor_hidden_service(Rc::clone(&hidden_service_config));
+    //dbg!("Ready!");
+    //print!("[DEBUG] Tempdir: {}", tmp_tor_dir.path().to_str().unwrap());
+
+    let hidden_service_hostname =
+        get_hidden_service_hostname(Rc::clone(&hidden_service_config).dir_tor_hidden_service.as_str())
+            .unwrap_or("Error".to_string());
+
+    let tor_share_url = TorShareUrl::random_path(hidden_service_hostname);
+    let share = share_file(Rc::clone(&hidden_service_config), file_or_folder.into(), tor_share_url.path.clone());
+
+    let ctrlc = CtrlC::new().expect("cannot create Ctrl+C handler?");
+    print_status_line(
+        &Color::Green,
+        format!(
+            "Sharing now! Run following command to download: \"torshare download {}\"",
+            tor_share_url.to_string()
+        ),
+    );
+    ctrlc.race(share).await;
+    drop(tmp_tor_dir);
+    //tmp_tor_dir.close().unwrap();
+    print_status_line(&Color::Red, "Stopped sharing\n");
+
+}
+
 #[tokio::main]
 async fn main() {
     let options: CliOptions = CliOptions::from_args();
@@ -103,35 +137,7 @@ async fn main() {
             download(TorShareUrl::from_str(url)).await;
         }
         CliOptions::Share { file_or_folder } => {
-            save_cursor_position();
-            print_status_line(&Color::Yellow, "Starting Tor");
-            let port_webserver: u16 = 8080;
-            let tmp_tor_dir = TempDir::new("tor-share").unwrap();
-            let tmp_tor_dir_hs = tmp_tor_dir.path().join("hs");
-            let _torthread =
-                start_tor_hidden_service(&tmp_tor_dir.path(), &tmp_tor_dir_hs, port_webserver);
-            //dbg!("Ready!");
-            //print!("[DEBUG] Tempdir: {}", tmp_tor_dir.path().to_str().unwrap());
-
-            let hidden_service_hostname =
-                get_hidden_service_hostname(tmp_tor_dir_hs.to_str().unwrap().into())
-                    .unwrap_or("Error".to_string());
-
-            let tor_share_url = TorShareUrl::random_path(hidden_service_hostname);
-            let share = share_file(file_or_folder.into(), tor_share_url.path.clone());
-
-            let ctrlc = CtrlC::new().expect("cannot create Ctrl+C handler?");
-            print_status_line(
-                &Color::Green,
-                format!(
-                    "Sharing now! Run following command to download: \"torshare download {}\"",
-                    tor_share_url.to_string()
-                ),
-            );
-            ctrlc.race(share).await;
-            drop(tmp_tor_dir);
-            //tmp_tor_dir.close().unwrap();
-            print_status_line(&Color::Red, "Stopped sharing\n");
+            share(file_or_folder).await;
         }
         _ => {}
     }

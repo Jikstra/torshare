@@ -114,7 +114,11 @@ pub async fn download_file(tor_socks5: TorSocks5, tor_share_url: TorShareUrl, cb
                 cb(DownloadState::DisconnectedError(e.to_string()));
                 break
             }
-            let chunk = chunk.unwrap().unwrap();
+            let chunk = chunk.unwrap();
+            if chunk.is_none() {
+                break
+            }
+            let chunk = chunk.unwrap();
             let elapsed_time_as_secs = last_write.elapsed().as_secs_f64();
 
             downloaded_bytes_last_second = downloaded_bytes_last_second + chunk.len();
@@ -126,7 +130,6 @@ pub async fn download_file(tor_socks5: TorSocks5, tor_share_url: TorShareUrl, cb
                 speed = downloaded_bytes_last_second as f64 / 1000000.0 / elapsed_time_as_secs;
             }
             let chunk_size_as_megabyte = chunk.len() as f64 / 1000000.0;
-            let megabytes_per_second = chunk_size_as_megabyte / elapsed_time_as_secs / 10.0;
 
             downloaded_megabytes = downloaded_megabytes + chunk_size_as_megabyte;
             if file_size == 0.0 {
