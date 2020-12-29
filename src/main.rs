@@ -39,17 +39,18 @@ async fn main() {
                     download_file(tor_share_url.hostname, tor_share_url.path).await;
                 }
                 None => {
-                    print_status_line(Color::Red, "Invalid URL\n");
+                    print_status_line(&Color::Red, "Invalid URL\n");
                 }
             }
         }
         CliOptions::Share { file_or_folder } => {
             save_cursor_position();
-            print_status_line(Color::Yellow, "Starting Tor");
+            print_status_line(&Color::Yellow, "Starting Tor");
             let port_webserver: u16 = 8080;
             let tmp_tor_dir = TempDir::new("tor-share").unwrap();
             let tmp_tor_dir_hs = tmp_tor_dir.path().join("hs");
-            let _torthread = start_tor_hidden_service(&tmp_tor_dir.path(), &tmp_tor_dir_hs, port_webserver);
+            let _torthread =
+                start_tor_hidden_service(&tmp_tor_dir.path(), &tmp_tor_dir_hs, port_webserver);
             //dbg!("Ready!");
             //print!("[DEBUG] Tempdir: {}", tmp_tor_dir.path().to_str().unwrap());
 
@@ -62,16 +63,16 @@ async fn main() {
 
             let ctrlc = CtrlC::new().expect("cannot create Ctrl+C handler?");
             print_status_line(
-                Color::Green,
+                &Color::Green,
                 format!(
-                    "Sharing now! Run following command to download:\n\ttorshare download {}\n",
+                    "Sharing now! Run following command to download: \"torshare download {}\"",
                     tor_share_url.to_string()
                 ),
             );
             ctrlc.race(share).await;
             drop(tmp_tor_dir);
             //tmp_tor_dir.close().unwrap();
-            print_status_line(Color::Red, "Stopped sharing\n");
+            print_status_line(&Color::Red, "Stopped sharing\n");
         }
         _ => {}
     }

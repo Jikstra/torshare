@@ -1,11 +1,7 @@
-pub use crossterm::style::Color;
-use crossterm::{
-    cursor, execute,
-    style::{Print, ResetColor, SetForegroundColor},
-    terminal,
-};
-use std::io::stdout;
+use std::io::{stdout, Write};
 use structopt::StructOpt;
+use termion;
+pub use termion::color as Color;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -33,19 +29,22 @@ pub struct GeneralOptions {
 }
 
 pub fn save_cursor_position() {
-    execute!(stdout(), cursor::SavePosition);
+    print!("{}", termion::cursor::Save);
 }
 
-pub fn print_status_line<S: AsRef<str>>(color: Color, text: S) {
+pub fn print_status_line<S: AsRef<str>>(color: &dyn termion::color::Color, text: S) {
     let text = text.as_ref();
-    execute!(
-        stdout(),
-        cursor::RestorePosition,
-        terminal::Clear(terminal::ClearType::All),
-        SetForegroundColor(color),
-        Print("⬤"),
-        ResetColor,
-        Print(" "),
-        Print(text)
+
+    stdout().write_all(
+        format!(
+            "{}{}{}⬤{} {}",
+            termion::cursor::Restore,
+            termion::clear::CurrentLine,
+            termion::color::Fg(color),
+            termion::color::Fg(termion::color::Reset),
+            text
+        )
+        .as_bytes(),
     );
+    stdout().flush().unwrap();
 }

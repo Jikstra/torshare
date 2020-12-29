@@ -22,7 +22,7 @@ pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
         .proxy(reqwest::Proxy::all(&socks5_url)?)
         .build()?;
     save_cursor_position();
-    print_status_line(Color::Yellow, "Connecting to tor network...");
+    print_status_line(&Color::Yellow, "Connecting to tor network...");
 
     let url = format!("http://{}/{}", hidden_service, path);
     loop {
@@ -31,21 +31,21 @@ pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
             let host_offline = e.to_string().contains("Host unreachable");
             if !host_offline {
                 print_status_line(
-                    Color::Yellow,
+                    &Color::Yellow,
                     "Connecting to tor network... Waiting for proxy...",
                 );
                 thread::sleep(time::Duration::from_millis(50));
                 continue;
             } else {
                 print_status_line(
-                    Color::Yellow,
+                    &Color::Yellow,
                     format!("Waiting for sharing side to come online..."),
                 );
                 thread::sleep(time::Duration::from_millis(50));
                 continue;
             };
         }
-        print_status_line(Color::Green, "Retrieving file information...");
+        print_status_line(&Color::Green, "Retrieving file information...");
 
         let mut result = result.unwrap();
         let fname = if let Some(content_disposition) = result.headers().get("Content-Disposition") {
@@ -77,7 +77,7 @@ pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
             .parse()?;
 
         print_status_line(
-            Color::Green,
+            &Color::Green,
             format!(" {}: {}% of {}mb", &fname, 0, file_size),
         );
 
@@ -87,13 +87,13 @@ pub async fn download_file(hidden_service: String, path: String) -> Result<()> {
             downloaded_bytes = downloaded_bytes + chunk.len();
             if file_size == 0 {
                 print_status_line(
-                    Color::Green,
+                    &Color::Green,
                     format!("{}: Downloaded {}bytes", fname, downloaded_bytes),
                 );
             } else {
                 let percent = (downloaded_bytes as f32 / file_size as f32) * 100.0;
                 print_status_line(
-                    Color::Green,
+                    &Color::Green,
                     format!("{}: {:.1}% of {}mb", fname, percent, file_size),
                 );
             }
