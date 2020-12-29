@@ -55,8 +55,9 @@ pub async fn download_file(tor_socks5: TorSocks5, tor_share_url: TorShareUrl, cb
     loop {
         let result = client.get(&url).send().await;
         if let Err(e) = result {
-            let host_offline = e.to_string().contains("Host unreachable");
-            if !host_offline {
+            //println!("{}\n", e);
+            let socks5_unreachable = e.to_string().contains("Proxy server unreachable");
+            if socks5_unreachable {
                 cb(DownloadState::ConnectingWaitingForProxy);
                 thread::sleep(time::Duration::from_millis(50));
                 continue;
