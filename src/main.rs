@@ -3,33 +3,26 @@
 extern crate tempdir;
 
 mod cli;
-use cli::{CliOptions, Color, GeneralOptions, print_status_line, save_cursor_position};
+use cli::{CliOptions, Color, print_status_line, save_cursor_position};
 use structopt::StructOpt;
 
 mod tor_utils;
-use tor_utils::{TorDirectory, TorHiddenServiceConfig, TorSocks5};
+use tor_utils::{TorDirectory, TorHiddenServiceConfig, TorSocks5, get_hidden_service_hostname, start_tor_hidden_service};
 
 mod tor_share_url;
-use tor_share_url::TorShareUrl;
 
 mod share;
-use share::{ShareState, share_file};
+use share::{ShareOptions, ShareState, share_file};
 
 mod download_file;
-use download_file::{DownloadState, download_file};
+use download_file::{DownloadOptions, DownloadState, download_file};
 
-async fn download(general_options: &GeneralOptions, url: Option<TorShareUrl>) {
-    if url.is_none() {
-        print_status_line(&Color::Red, "Error: Not a valid torshare URL\n");
-        return
-    }
-
-    let tor_dir = TorDirectory::from_general_options(&general_options);
-    let tor_share_url = url.unwrap();
+async fn download(download_options: &DownloadOptions) {
+    let tor_dir = TorDirectory::from_general_options(&download_options.tor_dir_options);
     let tor_socks5 = TorSocks5::from_random_port();
 
     //dbg!("Ready!");
-    download_file(&tor_dir, &tor_socks5, tor_share_url, |download_state| {
+    download_file(&tor_dir, &tor_socks5, &download_options.url, |download_state| {
         save_cursor_position();
         match download_state {
             DownloadState::ConnectingWaitingForTor => {
@@ -89,14 +82,23 @@ async fn download(general_options: &GeneralOptions, url: Option<TorShareUrl>) {
     }).await;
 }
 
-async fn share(general_options: &GeneralOptions, file_or_folder: &str) {
-
-    let tor_dir = TorDirectory::from_general_options(&general_options);
+async fn share(share_options: &ShareOptions) {
+    let tor_dir = TorDirectory::from_general_options(&share_options.tor_dir_options);
+    
     println!("Hallo!\n");
     let hidden_service_config = TorHiddenServiceConfig::from_random_port();
+    
+
+    let _torthread = start_tor_hidden_service(&tor_dir, &hidden_service_config);
+
+    let hidden_service_hostname =
+        get_hidden_service_hostname(&tor_dir)
+            .unwrap_or("Error".to_string());
+    
+    let tor_share_url = share_options.tor_share_url_options.into_tor_share_url(&hidden_service_hostname);
 
     save_cursor_position();
-    share_file(&tor_dir, &hidden_service_config, &file_or_folder, |share_state| {
+    share_file(&tor_dir, &tor_share_url, &hidden_service_config, &share_options.file_or_folder, |share_state| {
         match share_state {
             ShareState::ConnectingStartingTor => {
                 print_status_line(&Color::Yellow, "Starting Tor");
@@ -128,11 +130,11 @@ async fn main() {
     let options: CliOptions = CliOptions::from_args();
 
     match &options {
-        CliOptions::Download { url , general_options} => {
-            download(&general_options, TorShareUrl::from_str(&url)).await;
+        CliOptions::Download { download_options} => {
+            download(&download_options).await;
         }
-        CliOptions::Share { file_or_folder, general_options } => {
-            share(&general_options, &file_or_folder).await;
+        CliOptions::Share { share_options } => {
+            share(&share_options).await;
         }
     }
 

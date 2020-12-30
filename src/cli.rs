@@ -3,38 +3,27 @@ use structopt::StructOpt;
 use termion;
 pub use termion::color as Color;
 
+use crate::{download_file::DownloadOptions, share::ShareOptions};
+
+
+
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "TorShare",
     about = "A CLI tool to share and download files and folders through tor."
-
-
 )]
 pub enum CliOptions {
-
     Download {
         #[structopt(flatten)]
-        general_options: GeneralOptions,
-        url: String,
+        download_options: DownloadOptions,
     },
-
     Share {
         #[structopt(flatten)]
-        general_options: GeneralOptions,
-        file_or_folder: String,
-    },
+        share_options: ShareOptions
+    }
+    
 }
 
-#[derive(Debug, StructOpt)]
-pub struct GeneralOptions {
-    /// Activate debug mode
-    #[structopt(short, long, env = "DEBUG")]
-    pub debug: bool,
-    #[structopt(long, env = "TOR_DIR")]
-    pub tor_dir: Option<String>,
-    #[structopt(long, env = "TOR_DIR_HS")]
-    pub tor_dir_hs: Option<String>,
-}
 
 pub fn save_cursor_position() {
     //print!("{}", termion::cursor::Save);

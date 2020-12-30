@@ -9,8 +9,17 @@ use std::io::prelude::*;
 
 
 use rand::prelude::*;
+use structopt::StructOpt;
 
-use crate::cli::GeneralOptions;
+#[derive(Debug, StructOpt)]
+pub struct TorDirOptions {
+    #[structopt(long, env = "TOR_DIR")]
+    pub tor_dir: Option<String>,
+    #[structopt(long, env = "TOR_DIR_HS")]
+    pub tor_dir_hs: Option<String>,
+}
+
+
 
 
 pub struct TorDirectory {
@@ -31,11 +40,11 @@ impl TorDirectory {
         }
     }
 
-    pub fn from_general_options(general_options: &GeneralOptions) ->  Self{
-        if  general_options.tor_dir.is_some() {
-            let tor_dir = general_options.tor_dir.clone().unwrap();
-            let hidden_service = if general_options.tor_dir_hs.is_some() {
-                general_options.tor_dir_hs.clone().unwrap()
+    pub fn from_general_options(tor_dir_options: &TorDirOptions) ->  Self{
+        if  tor_dir_options.tor_dir.is_some() {
+            let tor_dir = tor_dir_options.tor_dir.clone().unwrap();
+            let hidden_service = if tor_dir_options.tor_dir_hs.is_some() {
+                tor_dir_options.tor_dir_hs.clone().unwrap()
             } else {
                 let hidden_service = tor_dir.clone();
                 let path = Path::new(&hidden_service);

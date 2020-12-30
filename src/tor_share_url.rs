@@ -1,24 +1,27 @@
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 
+use crate::share::TorShareUrlOptions;
+
+#[derive(Debug)]
 pub struct TorShareUrl {
     pub hostname: String,
     pub path: String,
 }
 
 impl TorShareUrl {
-    pub fn from_str(url: &str) -> Option<Self> {
+    pub fn from_str(url: &str) -> Result<Self, &str> {
         if let Some((hostname, path)) = url.split_once('/') {
             if !hostname.ends_with(".onion") {
-                None
+                Err("Hostname doesn't end with .onion")
             } else {
-                Some(TorShareUrl {
+                Ok(TorShareUrl {
                     hostname: hostname.into(),
                     path: path.into(),
                 })
             }
         } else {
-            None
+            Err("Hostname doesn't contain a / delimiter")
         }
     }
 

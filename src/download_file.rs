@@ -7,10 +7,20 @@ use std::{
 use std::io::Write;
 use std::{thread, time};
 
-use crate::{tor_share_url::{TorShareUrl}, tor_utils::{TorDirectory, TorSocks5, start_tor_socks5}};
+use crate::{tor_share_url::{TorShareUrl}, tor_utils::{TorDirOptions, TorDirectory, TorSocks5, start_tor_socks5}};
 use error_chain::error_chain;
 use reqwest::header::CONTENT_LENGTH;
 
+use structopt::StructOpt;
+
+
+#[derive(Debug, StructOpt)]
+pub struct DownloadOptions {
+    #[structopt(flatten)]
+    pub tor_dir_options: TorDirOptions,
+    #[structopt(parse(try_from_str = TorShareUrl::from_str))]
+    pub url: TorShareUrl,
+}
 
 
 pub struct FileInformation {
@@ -43,8 +53,8 @@ error_chain! {
          ToStrError(reqwest::header::ToStrError);
      }
 }
-pub async fn download_file(tor_dir: &TorDirectory, tor_socks5: &TorSocks5, tor_share_url: TorShareUrl, cb: impl Fn(DownloadState)) {
-    start_tor_socks5(&tor_dir, &tor_socks5);
+pub async fn download_file(tor_dir: &TorDirectory, tor_socks5: &TorSocks5, tor_share_url: &TorShareUrl, cb: impl Fn(DownloadState)) {
+    
     cb(DownloadState::ConnectingWaitingForTor);
     let socks5_url = tor_socks5.to_string();
     let client = reqwest::Client::builder()

@@ -1,17 +1,63 @@
+use std::{num::ParseIntError, str::FromStr};
+
 use async_ctrlc::CtrlC;
 use futures::Future;
 use warp::Filter;
-use crate::{tor_share_url::TorShareUrl, tor_utils::{TorDirectory, get_hidden_service_hostname, start_tor_hidden_service}};
+use crate::{tor_share_url::TorShareUrl, tor_utils::{TorDirOptions, TorDirectory, get_hidden_service_hostname, start_tor_hidden_service}};
 
 use futures_lite::future::FutureExt;
-
+use structopt::StructOpt;
 
 use crate::tor_utils::TorHiddenServiceConfig;
 
 
-pub enum ShareState {
+
+
+#[derive(Debug, StructOpt)]
+pub struct TorShareUrlOptions {
+    #[structopt(long)]
+    pub path: Option<String>
+}
+
+
+impl TorShareUrlOptions {
+    pub fn into_tor_share_url(&self, hostname: &str) -> TorShareUrl {
+        if let Some(path) = &self.path {
+            TorShareUrl {
+                hostname: hostname.clone().into(),
+                path: path.clone().into(),
+            }
+        } else {
+            TorShareUrl::random_path(hostname.clone().into())
+        }
+    }
+}
+
+
+impl FromStr for TorShareUrlOptions {
+    type Err = ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(TorShareUrlOptions { path: Some(s.clone().into())})
+    }
+}
+
+
+
+#[derive(Debug, StructOpt)]
+pub struct ShareOptions {
+    #[structopt(flatten)]
+    pub tor_dir_options: TorDirOptions,
+    
+    pub file_or_folder: String,
+    pub id: Option<String>,
+
+    #[structopt(flatten)]
+    pub tor_share_url_options: TorShareUrlOptions,
+}
+
+pub enum ShareState<'a> {
     ConnectingStartingTor,
-    OnlineSharingNow(TorShareUrl),
+    OnlineSharingNow(&'a TorShareUrl),
     OfflineStopped,
     OfflineError(String)
 }
@@ -26,17 +72,11 @@ pub fn lossy_file_name(file: &warp::fs::File) -> Option<String> {
     Some(file_name.into())
 }
 
-pub async fn share_file(tor_dir: &TorDirectory, hidden_service_config: &TorHiddenServiceConfig, file_or_folder: &str,  cb: impl Fn(ShareState)) {
+pub async fn share_file(tor_dir: &TorDirectory, tor_share_url: &TorShareUrl, hidden_service_config: &TorHiddenServiceConfig, file_or_folder: &str,  cb: impl Fn(ShareState)) {
     cb(ShareState::ConnectingStartingTor);
 
-    let _torthread =
-        start_tor_hidden_service(&tor_dir, &hidden_service_config);
 
-    let hidden_service_hostname =
-        get_hidden_service_hostname(&tor_dir)
-            .unwrap_or("Error".to_string());
 
-    let tor_share_url = TorShareUrl::random_path(hidden_service_hostname);
     let share = start_webserver(&hidden_service_config, file_or_folder.into(), tor_share_url.path.clone());
 
     let ctrlc = CtrlC::new().expect("cannot create Ctrl+C handler?");
