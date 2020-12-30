@@ -1,10 +1,7 @@
-use std::rc::Rc;
-
 use async_ctrlc::CtrlC;
 use futures::Future;
 use warp::Filter;
-use crate::{print_status_line, tor_share_url::TorShareUrl, tor_utils::{TorDirectory, get_hidden_service_hostname, start_tor_hidden_service}};
-use crate::Color;
+use crate::{tor_share_url::TorShareUrl, tor_utils::{TorDirectory, get_hidden_service_hostname, start_tor_hidden_service}};
 
 use futures_lite::future::FutureExt;
 
@@ -29,18 +26,18 @@ pub fn lossy_file_name(file: &warp::fs::File) -> Option<String> {
     Some(file_name.into())
 }
 
-pub async fn share_file(tor_dir: Rc<TorDirectory>, hidden_service_config: Rc<TorHiddenServiceConfig>, file_or_folder: String,  cb: impl Fn(ShareState)) {
+pub async fn share_file(tor_dir: &TorDirectory, hidden_service_config: &TorHiddenServiceConfig, file_or_folder: String,  cb: impl Fn(ShareState)) {
     cb(ShareState::ConnectingStartingTor);
 
     let _torthread =
-        start_tor_hidden_service(Rc::clone(&tor_dir), Rc::clone(&hidden_service_config));
+        start_tor_hidden_service(&tor_dir, &hidden_service_config);
 
     let hidden_service_hostname =
-        get_hidden_service_hostname(Rc::clone(&tor_dir))
+        get_hidden_service_hostname(&tor_dir)
             .unwrap_or("Error".to_string());
 
     let tor_share_url = TorShareUrl::random_path(hidden_service_hostname);
-    let share = start_webserver(Rc::clone(&hidden_service_config), file_or_folder.into(), tor_share_url.path.clone());
+    let share = start_webserver(&hidden_service_config, file_or_folder.into(), tor_share_url.path.clone());
 
     let ctrlc = CtrlC::new().expect("cannot create Ctrl+C handler?");
     cb(ShareState::OnlineSharingNow(tor_share_url));
@@ -51,7 +48,7 @@ pub async fn share_file(tor_dir: Rc<TorDirectory>, hidden_service_config: Rc<Tor
     cb(ShareState::OfflineStopped);
 }
 
-fn start_webserver(tor_hidden_service_config: Rc<TorHiddenServiceConfig>, path: String, id: String) -> impl Future<Output = ()> {
+fn start_webserver(tor_hidden_service_config: &TorHiddenServiceConfig, path: String, id: String) -> impl Future<Output = ()> {
     pretty_env_logger::init();
 
     //println!("Serving file {} under /{}", path, id);
