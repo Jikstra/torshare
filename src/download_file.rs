@@ -36,7 +36,7 @@ pub struct DownloadProgress {
 
 pub enum DownloadState<'a> {
     ConnectingWaitingForTor,
-    ConnectingWaitingForProxy,
+    ConnectingWaitingForProxy(&'a TorSocks5),
     ConnectedWaitingForPeer,
     ConnectedRetrievingFileInformation,
     ConnectedRetrievedFileInformation(&'a FileInformation),
@@ -53,8 +53,12 @@ error_chain! {
          ToStrError(reqwest::header::ToStrError);
      }
 }
-pub async fn download_file(tor_dir: &TorDirectory, tor_socks5: &TorSocks5, tor_share_url: &TorShareUrl, cb: impl Fn(DownloadState)) {
+pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(DownloadState)) {
     
+    let tor_dir = TorDirectory::from_general_options(&download_options.tor_dir_options);
+    let tor_socks5 = TorSocks5::from_random_port();
+    let tor_share_url = &download_options.url;
+
     cb(DownloadState::ConnectingWaitingForTor);
     let socks5_url = tor_socks5.to_string();
     let client = reqwest::Client::builder()
@@ -68,7 +72,7 @@ pub async fn download_file(tor_dir: &TorDirectory, tor_socks5: &TorSocks5, tor_s
             //println!("{}\n", e);
             let socks5_unreachable = e.to_string().contains("Proxy server unreachable");
             if socks5_unreachable {
-                cb(DownloadState::ConnectingWaitingForProxy);
+                cb(DownloadState::ConnectingWaitingForProxy(&tor_socks5));
                 thread::sleep(time::Duration::from_millis(50));
                 continue;
             } else {

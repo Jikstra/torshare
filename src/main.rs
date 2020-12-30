@@ -18,17 +18,15 @@ mod download_file;
 use download_file::{DownloadOptions, DownloadState, download_file};
 
 async fn download(download_options: &DownloadOptions) {
-    let tor_dir = TorDirectory::from_general_options(&download_options.tor_dir_options);
-    let tor_socks5 = TorSocks5::from_random_port();
 
     //dbg!("Ready!");
-    download_file(&tor_dir, &tor_socks5, &download_options.url, |download_state| {
+    download_file(&download_options, |download_state| {
         save_cursor_position();
         match download_state {
             DownloadState::ConnectingWaitingForTor => {
                 print_status_line(&Color::Yellow, "Connecting to tor network...");
             },
-            DownloadState::ConnectingWaitingForProxy => {
+            DownloadState::ConnectingWaitingForProxy(tor_socks5) => {
                 print_status_line(
                     &Color::Yellow,
                     format!("Connecting to tor network... Waiting for proxy... {}", tor_socks5.port),
@@ -83,22 +81,8 @@ async fn download(download_options: &DownloadOptions) {
 }
 
 async fn share(share_options: &ShareOptions) {
-    let tor_dir = TorDirectory::from_general_options(&share_options.tor_dir_options);
-    
-    println!("Hallo!\n");
-    let hidden_service_config = TorHiddenServiceConfig::from_random_port();
-    
-
-    let _torthread = start_tor_hidden_service(&tor_dir, &hidden_service_config);
-
-    let hidden_service_hostname =
-        get_hidden_service_hostname(&tor_dir)
-            .unwrap_or("Error".to_string());
-    
-    let tor_share_url = share_options.tor_share_url_options.into_tor_share_url(&hidden_service_hostname);
-
     save_cursor_position();
-    share_file(&tor_dir, &tor_share_url, &hidden_service_config, &share_options.file_or_folder, |share_state| {
+    share_file(&share_options, |share_state| {
         match share_state {
             ShareState::ConnectingStartingTor => {
                 print_status_line(&Color::Yellow, "Starting Tor");

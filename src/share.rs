@@ -9,16 +9,11 @@ use futures_lite::future::FutureExt;
 use structopt::StructOpt;
 
 use crate::tor_utils::TorHiddenServiceConfig;
-
-
-
-
 #[derive(Debug, StructOpt)]
 pub struct TorShareUrlOptions {
     #[structopt(long)]
     pub path: Option<String>
 }
-
 
 impl TorShareUrlOptions {
     pub fn into_tor_share_url(&self, hostname: &str) -> TorShareUrl {
@@ -33,15 +28,12 @@ impl TorShareUrlOptions {
     }
 }
 
-
 impl FromStr for TorShareUrlOptions {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(TorShareUrlOptions { path: Some(s.clone().into())})
     }
 }
-
-
 
 #[derive(Debug, StructOpt)]
 pub struct ShareOptions {
@@ -72,15 +64,23 @@ pub fn lossy_file_name(file: &warp::fs::File) -> Option<String> {
     Some(file_name.into())
 }
 
-pub async fn share_file(tor_dir: &TorDirectory, tor_share_url: &TorShareUrl, hidden_service_config: &TorHiddenServiceConfig, file_or_folder: &str,  cb: impl Fn(ShareState)) {
+pub async fn share_file(share_options: &ShareOptions,  cb: impl Fn(ShareState)) {
+    let tor_dir = TorDirectory::from_general_options(&share_options.tor_dir_options); 
+    let hidden_service_config = TorHiddenServiceConfig::from_random_port();  
+    let _torthread = start_tor_hidden_service(&tor_dir, &hidden_service_config);
+
+    let hidden_service_hostname =
+        get_hidden_service_hostname(&tor_dir)
+            .unwrap_or("Error".to_string());
+    
+    let tor_share_url = share_options.tor_share_url_options.into_tor_share_url(&hidden_service_hostname);
+
     cb(ShareState::ConnectingStartingTor);
 
-
-
-    let share = start_webserver(&hidden_service_config, file_or_folder.into(), tor_share_url.path.clone());
+    let share = start_webserver(&hidden_service_config, share_options.file_or_folder.clone(), tor_share_url.path.clone());
 
     let ctrlc = CtrlC::new().expect("cannot create Ctrl+C handler?");
-    cb(ShareState::OnlineSharingNow(tor_share_url));
+    cb(ShareState::OnlineSharingNow(&tor_share_url));
 
     ctrlc.race(share).await;
     tor_dir.drop_if_temp();
