@@ -1,4 +1,4 @@
-use std::thread;
+use std::{path::Path, thread};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -9,6 +9,8 @@ use std::io::prelude::*;
 
 
 use rand::prelude::*;
+
+use crate::cli::GeneralOptions;
 
 
 pub struct TorDirectory {
@@ -27,6 +29,28 @@ impl TorDirectory {
             hidden_service: tmp_tor_dir_hs,
             tempdir: Some(tmp_tor_dir)
         }
+    }
+
+    pub fn from_general_options(general_options: &GeneralOptions) ->  Self{
+        if  general_options.tor_dir.is_some() {
+            let tor_dir = general_options.tor_dir.clone().unwrap();
+            let hidden_service = if general_options.tor_dir_hs.is_some() {
+                general_options.tor_dir_hs.clone().unwrap()
+            } else {
+                let hidden_service = tor_dir.clone();
+                let path = Path::new(&hidden_service);
+                let path = path.join("hs");
+                path.to_string_lossy().into()
+                
+            };
+            return TorDirectory {
+                tor: tor_dir.clone(),
+                hidden_service,
+                tempdir: None
+            };
+        }
+        Self::from_tempdir()
+
     }
 
     pub fn drop_if_temp(&self) {

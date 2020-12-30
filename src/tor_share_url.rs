@@ -7,7 +7,7 @@ pub struct TorShareUrl {
 }
 
 impl TorShareUrl {
-    pub fn from_str(url: String) -> Option<Self> {
+    pub fn from_str(url: &str) -> Option<Self> {
         if let Some((hostname, path)) = url.split_once('/') {
             if !hostname.ends_with(".onion") {
                 None

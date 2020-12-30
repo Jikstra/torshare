@@ -7,16 +7,20 @@ pub use termion::color as Color;
 #[structopt(
     name = "TorShare",
     about = "A CLI tool to share and download files and folders through tor."
+
+
 )]
 pub enum CliOptions {
-    #[structopt(flatten)]
-    GeneralOptions(GeneralOptions),
 
     Download {
+        #[structopt(flatten)]
+        general_options: GeneralOptions,
         url: String,
     },
 
     Share {
+        #[structopt(flatten)]
+        general_options: GeneralOptions,
         file_or_folder: String,
     },
 }
@@ -24,8 +28,12 @@ pub enum CliOptions {
 #[derive(Debug, StructOpt)]
 pub struct GeneralOptions {
     /// Activate debug mode
-    #[structopt(short, long)]
-    debug: bool,
+    #[structopt(short, long, env = "DEBUG")]
+    pub debug: bool,
+    #[structopt(long, env = "TOR_DIR")]
+    pub tor_dir: Option<String>,
+    #[structopt(long, env = "TOR_DIR_HS")]
+    pub tor_dir_hs: Option<String>,
 }
 
 pub fn save_cursor_position() {

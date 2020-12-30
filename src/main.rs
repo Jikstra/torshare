@@ -3,7 +3,7 @@
 extern crate tempdir;
 
 mod cli;
-use cli::{print_status_line, save_cursor_position, CliOptions, Color};
+use cli::{CliOptions, Color, GeneralOptions, print_status_line, save_cursor_position};
 use structopt::StructOpt;
 
 mod tor_utils;
@@ -18,13 +18,13 @@ use share::{ShareState, share_file};
 mod download_file;
 use download_file::{DownloadState, download_file};
 
-async fn download(url: Option<TorShareUrl>) {
+async fn download(general_options: &GeneralOptions, url: Option<TorShareUrl>) {
     if url.is_none() {
         print_status_line(&Color::Red, "Error: Not a valid torshare URL\n");
         return
     }
 
-    let tor_dir = TorDirectory::from_tempdir();
+    let tor_dir = TorDirectory::from_general_options(&general_options);
     let tor_share_url = url.unwrap();
     let tor_socks5 = TorSocks5::from_random_port();
 
@@ -89,13 +89,14 @@ async fn download(url: Option<TorShareUrl>) {
     }).await;
 }
 
-async fn share(file_or_folder: String) {
+async fn share(general_options: &GeneralOptions, file_or_folder: &str) {
 
-    let tor_dir = TorDirectory::from_tempdir();
+    let tor_dir = TorDirectory::from_general_options(&general_options);
+    println!("Hallo!\n");
     let hidden_service_config = TorHiddenServiceConfig::from_random_port();
 
     save_cursor_position();
-    share_file(&tor_dir, &hidden_service_config, file_or_folder, |share_state| {
+    share_file(&tor_dir, &hidden_service_config, &file_or_folder, |share_state| {
         match share_state {
             ShareState::ConnectingStartingTor => {
                 print_status_line(&Color::Yellow, "Starting Tor");
@@ -126,13 +127,14 @@ async fn share(file_or_folder: String) {
 async fn main() {
     let options: CliOptions = CliOptions::from_args();
 
-    match options {
-        CliOptions::Download { url } => {
-            download(TorShareUrl::from_str(url)).await;
+    match &options {
+        CliOptions::Download { url , general_options} => {
+            download(&general_options, TorShareUrl::from_str(&url)).await;
         }
-        CliOptions::Share { file_or_folder } => {
-            share(file_or_folder).await;
+        CliOptions::Share { file_or_folder, general_options } => {
+            share(&general_options, &file_or_folder).await;
         }
-        _ => {}
     }
+
+
 }

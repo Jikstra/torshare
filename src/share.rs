@@ -26,7 +26,7 @@ pub fn lossy_file_name(file: &warp::fs::File) -> Option<String> {
     Some(file_name.into())
 }
 
-pub async fn share_file(tor_dir: &TorDirectory, hidden_service_config: &TorHiddenServiceConfig, file_or_folder: String,  cb: impl Fn(ShareState)) {
+pub async fn share_file(tor_dir: &TorDirectory, hidden_service_config: &TorHiddenServiceConfig, file_or_folder: &str,  cb: impl Fn(ShareState)) {
     cb(ShareState::ConnectingStartingTor);
 
     let _torthread =
