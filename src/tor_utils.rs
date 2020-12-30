@@ -1,5 +1,3 @@
-use std::path::Path;
-use std::rc::Rc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -40,30 +38,19 @@ impl TorDirectory {
 
 
 pub struct TorHiddenServiceConfig {
-    pub local_host: Rc<String>,
-    pub local_port: u16
+    pub local_host: String,
+    pub local_port: u16,
+    pub remote_port: u16,
 }
 
-
-
-impl TorHiddenServiceConfig {
-    pub fn new(local_host: String, local_port: u16) -> Rc<Self> {
-        Rc::new(Self {
-            local_host: Rc::new(local_host),
-            local_port: local_port
-        })
-    }
-    
-    pub fn from_random_port() -> Rc<Self> {
+impl TorHiddenServiceConfig { 
+    pub fn from_random_port() -> Self {
         let rand_port = random_port();
-        Self::new(
-            "127.0.0.1".into(),
-            rand_port,
-        )
+        Self { local_host: "127.0.0.1".into(), local_port: rand_port, remote_port: 80 }
     }
 }
 
-pub fn start_tor_hidden_service(tor_dir: &TorDirectory, config: Rc<TorHiddenServiceConfig>) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
+pub fn start_tor_hidden_service(tor_dir: &TorDirectory, config: &TorHiddenServiceConfig) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
     let torthread = Tor::new()
         .flag(TorFlag::DataDirectory(tor_dir.tor.as_str().into()))
         .flag(TorFlag::SocksPort(0))
@@ -73,7 +60,7 @@ pub fn start_tor_hidden_service(tor_dir: &TorDirectory, config: Rc<TorHiddenServ
         ))
         .flag(TorFlag::HiddenServiceVersion(HiddenServiceVersion::V3))
         .flag(TorFlag::HiddenServicePort(
-            TorAddress::Port(80),
+            TorAddress::Port(config.remote_port),
             Some(TorAddress::AddressPort(config.local_host.as_str().into(), config.local_port).into()).into(),
         ))
         .flag(TorFlag::LogTo(
@@ -129,12 +116,9 @@ pub struct TorSocks5 {
 }
 
 impl TorSocks5 {
-    pub fn new(host: String, port: u16) -> Self {
-        TorSocks5 { host: host, port }
-    }
     pub fn from_random_port() -> Self {
         let rand_port = random_port();
-        Self::new("127.0.0.1".into(), rand_port)
+        Self { host: "127.0.0.1".into(), port: rand_port }
     }
 
     pub fn to_string(&self) -> String {

@@ -1,5 +1,4 @@
 use reqwest;
-use std::{rc::Rc};
 use std::{
     fs::File,
     time::{Instant},
@@ -25,13 +24,13 @@ pub struct DownloadProgress {
     pub speed: f64
 }
 
-pub enum DownloadState {
+pub enum DownloadState<'a> {
     ConnectingWaitingForTor,
     ConnectingWaitingForProxy,
     ConnectedWaitingForPeer,
     ConnectedRetrievingFileInformation,
-    ConnectedRetrievedFileInformation(Rc<FileInformation>),
-    ConnectedDownloading(Rc<FileInformation>, DownloadProgress),
+    ConnectedRetrievedFileInformation(&'a FileInformation),
+    ConnectedDownloading(&'a FileInformation, DownloadProgress),
     DisconnectedError(String)
 }
 
@@ -101,9 +100,9 @@ pub async fn download_file(tor_dir: &TorDirectory, tor_socks5: &TorSocks5, tor_s
             .unwrap()
             / 1000000.0;
 
-        let file_information = Rc::new(FileInformation { name: fname, size: file_size });
+        let file_information = FileInformation { name: fname, size: file_size };
 
-        cb(DownloadState::ConnectedRetrievedFileInformation(Rc::clone(&file_information)));
+        cb(DownloadState::ConnectedRetrievedFileInformation(&file_information));
 
         let mut downloaded_megabytes: f64 = 0.0;
         let mut last_write = Instant::now();
@@ -136,12 +135,12 @@ pub async fn download_file(tor_dir: &TorDirectory, tor_socks5: &TorSocks5, tor_s
 
             downloaded_megabytes = downloaded_megabytes + chunk_size_as_megabyte;
             if file_size == 0.0 {
-                cb(DownloadState::ConnectedDownloading(Rc::clone(&file_information), DownloadProgress { downloaded_megabytes, percent: -1.0, speed}));
+                cb(DownloadState::ConnectedDownloading(&file_information, DownloadProgress { downloaded_megabytes, percent: -1.0, speed}));
 
             } else {
                 let percent = downloaded_megabytes as f32 / file_size as f32 * 100.0;
 
-                cb(DownloadState::ConnectedDownloading(Rc::clone(&file_information), DownloadProgress { downloaded_megabytes, percent, speed}));
+                cb(DownloadState::ConnectedDownloading(&file_information, DownloadProgress { downloaded_megabytes, percent, speed}));
             }
         }
         println!("\n");

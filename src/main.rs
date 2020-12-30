@@ -1,7 +1,6 @@
 #![feature(str_split_once)]
 
 extern crate tempdir;
-use std::rc::Rc;
 
 mod cli;
 use cli::{print_status_line, save_cursor_position, CliOptions, Color};
@@ -96,7 +95,7 @@ async fn share(file_or_folder: String) {
     let hidden_service_config = TorHiddenServiceConfig::from_random_port();
 
     save_cursor_position();
-    share_file(&tor_dir, Rc::clone(&hidden_service_config), file_or_folder, |share_state| {
+    share_file(&tor_dir, &hidden_service_config, file_or_folder, |share_state| {
         match share_state {
             ShareState::ConnectingStartingTor => {
                 print_status_line(&Color::Yellow, "Starting Tor");
