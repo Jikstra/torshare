@@ -3,17 +3,12 @@
 extern crate tempdir;
 use std::rc::Rc;
 
-use tempdir::TempDir;
-
-use async_ctrlc::CtrlC;
-use futures_lite::future::FutureExt;
-
 mod cli;
 use cli::{print_status_line, save_cursor_position, CliOptions, Color};
 use structopt::StructOpt;
 
 mod tor_utils;
-use tor_utils::{TorDirectory, TorHiddenServiceConfig, TorSocks5, get_hidden_service_hostname, start_tor_hidden_service};
+use tor_utils::{TorDirectory, TorHiddenServiceConfig, TorSocks5};
 
 mod tor_share_url;
 use tor_share_url::TorShareUrl;
@@ -35,7 +30,7 @@ async fn download(url: Option<TorShareUrl>) {
     let tor_socks5 = TorSocks5::from_random_port();
 
     //dbg!("Ready!");
-    download_file(Rc::clone(&tor_dir), &tor_socks5, tor_share_url, |download_state| {
+    download_file(&tor_dir, &tor_socks5, tor_share_url, |download_state| {
         save_cursor_position();
         match download_state {
             DownloadState::ConnectingWaitingForTor => {
@@ -101,7 +96,7 @@ async fn share(file_or_folder: String) {
     let hidden_service_config = TorHiddenServiceConfig::from_random_port();
 
     save_cursor_position();
-    share_file(Rc::clone(&tor_dir), Rc::clone(&hidden_service_config), file_or_folder, |share_state| {
+    share_file(&tor_dir, Rc::clone(&hidden_service_config), file_or_folder, |share_state| {
         match share_state {
             ShareState::ConnectingStartingTor => {
                 print_status_line(&Color::Yellow, "Starting Tor");

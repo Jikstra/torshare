@@ -14,21 +14,21 @@ use rand::prelude::*;
 
 
 pub struct TorDirectory {
-    pub tor: Rc<String>,
-    pub hidden_service: Rc<String>,
+    pub tor: String,
+    pub hidden_service: String,
     tempdir: Option<TempDir>
 }
 
 impl TorDirectory {
-    pub fn from_tempdir() -> Rc<Self> {
+    pub fn from_tempdir() -> Self {
         let tmp_tor_dir = TempDir::new("tor-share").unwrap();
         let tmp_tor_dir2: String = tmp_tor_dir.path().to_string_lossy().into();
         let tmp_tor_dir_hs = tmp_tor_dir.path().join("hs").to_string_lossy().into();
-        Rc::new(TorDirectory {
-            tor: Rc::new(tmp_tor_dir2),
-            hidden_service: Rc::new(tmp_tor_dir_hs),
+        TorDirectory {
+            tor: tmp_tor_dir2,
+            hidden_service: tmp_tor_dir_hs,
             tempdir: Some(tmp_tor_dir)
-        })
+        }
     }
 
     pub fn drop_if_temp(&self) {
@@ -63,7 +63,7 @@ impl TorHiddenServiceConfig {
     }
 }
 
-pub fn start_tor_hidden_service(tor_dir: Rc<TorDirectory>, config: Rc<TorHiddenServiceConfig>) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
+pub fn start_tor_hidden_service(tor_dir: &TorDirectory, config: Rc<TorHiddenServiceConfig>) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
     let torthread = Tor::new()
         .flag(TorFlag::DataDirectory(tor_dir.tor.as_str().into()))
         .flag(TorFlag::SocksPort(0))
@@ -85,7 +85,7 @@ pub fn start_tor_hidden_service(tor_dir: Rc<TorDirectory>, config: Rc<TorHiddenS
     return torthread;
 }
 
-pub fn start_tor_socks5(tor_dir: Rc<TorDirectory>, socks5: &TorSocks5) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
+pub fn start_tor_socks5(tor_dir: &TorDirectory, socks5: &TorSocks5) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
     let torthread = Tor::new()
         .flag(TorFlag::DataDirectory(tor_dir.tor.as_str().into()))
         .flag(TorFlag::ControlPort(0))
@@ -96,7 +96,7 @@ pub fn start_tor_socks5(tor_dir: Rc<TorDirectory>, socks5: &TorSocks5) -> JoinHa
     return torthread;
 }
 
-pub fn get_hidden_service_hostname(tor_dir: Rc<TorDirectory>) -> std::io::Result<String> {
+pub fn get_hidden_service_hostname(tor_dir: &TorDirectory) -> std::io::Result<String> {
     let file_name = format!("{}/hostname", tor_dir.hidden_service.clone());
 
     let file = loop {

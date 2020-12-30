@@ -29,14 +29,14 @@ pub fn lossy_file_name(file: &warp::fs::File) -> Option<String> {
     Some(file_name.into())
 }
 
-pub async fn share_file(tor_dir: Rc<TorDirectory>, hidden_service_config: Rc<TorHiddenServiceConfig>, file_or_folder: String,  cb: impl Fn(ShareState)) {
+pub async fn share_file(tor_dir: &TorDirectory, hidden_service_config: Rc<TorHiddenServiceConfig>, file_or_folder: String,  cb: impl Fn(ShareState)) {
     cb(ShareState::ConnectingStartingTor);
 
     let _torthread =
-        start_tor_hidden_service(Rc::clone(&tor_dir), Rc::clone(&hidden_service_config));
+        start_tor_hidden_service(&tor_dir, Rc::clone(&hidden_service_config));
 
     let hidden_service_hostname =
-        get_hidden_service_hostname(Rc::clone(&tor_dir))
+        get_hidden_service_hostname(&tor_dir)
             .unwrap_or("Error".to_string());
 
     let tor_share_url = TorShareUrl::random_path(hidden_service_hostname);
