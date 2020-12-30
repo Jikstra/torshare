@@ -44,8 +44,8 @@ error_chain! {
          ToStrError(reqwest::header::ToStrError);
      }
 }
-pub async fn download_file(tor_dir: Rc<TorDirectory>, tor_socks5: Rc<TorSocks5>, tor_share_url: TorShareUrl, cb: impl Fn(DownloadState)) {
-    start_tor_socks5(tor_dir, Rc::clone(&tor_socks5));
+pub async fn download_file(tor_dir: Rc<TorDirectory>, tor_socks5: &TorSocks5, tor_share_url: TorShareUrl, cb: impl Fn(DownloadState)) {
+    start_tor_socks5(tor_dir, &tor_socks5);
     cb(DownloadState::ConnectingWaitingForTor);
     let socks5_url = tor_socks5.to_string();
     let client = reqwest::Client::builder()

@@ -35,7 +35,7 @@ async fn download(url: Option<TorShareUrl>) {
     let tor_socks5 = TorSocks5::from_random_port();
 
     //dbg!("Ready!");
-    download_file(Rc::clone(&tor_dir), Rc::clone(&tor_socks5), tor_share_url, |download_state| {
+    download_file(Rc::clone(&tor_dir), &tor_socks5, tor_share_url, |download_state| {
         save_cursor_position();
         match download_state {
             DownloadState::ConnectingWaitingForTor => {

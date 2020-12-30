@@ -85,7 +85,7 @@ pub fn start_tor_hidden_service(tor_dir: Rc<TorDirectory>, config: Rc<TorHiddenS
     return torthread;
 }
 
-pub fn start_tor_socks5(tor_dir: Rc<TorDirectory>, socks5: Rc<TorSocks5>) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
+pub fn start_tor_socks5(tor_dir: Rc<TorDirectory>, socks5: &TorSocks5) -> JoinHandle<std::result::Result<u8, libtor::Error>> {
     let torthread = Tor::new()
         .flag(TorFlag::DataDirectory(tor_dir.tor.as_str().into()))
         .flag(TorFlag::ControlPort(0))
@@ -124,15 +124,15 @@ pub fn random_port() -> u16 {
     rand::thread_rng().gen_range(1024..65535)
 }
 pub struct TorSocks5 {
-    pub host: Rc<String>,
+    pub host: String,
     pub port: u16
 }
 
 impl TorSocks5 {
-    pub fn new(host: String, port: u16) -> Rc<Self> {
-        Rc::new(TorSocks5 { host: Rc::new(host), port })
+    pub fn new(host: String, port: u16) -> Self {
+        TorSocks5 { host: host, port }
     }
-    pub fn from_random_port() -> Rc<Self> {
+    pub fn from_random_port() -> Self {
         let rand_port = random_port();
         Self::new("127.0.0.1".into(), rand_port)
     }
