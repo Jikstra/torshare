@@ -1,18 +1,19 @@
 use reqwest;
-use std::{
-    fs::File,
-    time::{Instant},
-};
+use std::{fs::File, time::Instant};
+use std::path::Path;
+
 
 use std::io::Write;
 use std::{thread, time};
 
-use crate::{tor_share_url::{TorShareUrl}, tor_utils::{TorDirOptions, TorDirectory, TorSocks5, start_tor_socks5}};
+use crate::{
+    tor_share_url::TorShareUrl,
+    tor_utils::{start_tor_socks5, TorDirOptions, TorDirectory, TorSocks5},
+};
 use error_chain::error_chain;
 use reqwest::header::CONTENT_LENGTH;
 
 use structopt::StructOpt;
-
 
 #[derive(Debug, StructOpt)]
 pub struct DownloadOptions {
@@ -22,28 +23,31 @@ pub struct DownloadOptions {
     pub url: TorShareUrl,
 }
 
-
 pub struct FileInformation {
     pub name: String,
-    pub size: f64
+    pub size: f64,
 }
 
 pub struct DownloadProgress {
     pub downloaded_megabytes: f64,
     pub percent: f32,
-    pub speed: f64
+    pub speed: f64,
 }
 
 pub enum DownloadState<'a> {
     ConnectingWaitingForTor,
     ConnectingWaitingForProxy(&'a TorSocks5),
     ConnectedWaitingForPeer,
+    ConnectedAskForContinue,
     ConnectedRetrievingFileInformation,
     ConnectedRetrievedFileInformation(&'a FileInformation),
     ConnectedDownloading(&'a FileInformation, DownloadProgress),
-    DisconnectedError(String)
+    DisconnectedError(String),
 }
 
+pub enum DownloadStateReturn {
+    Continue(bool)
+}
 
 error_chain! {
      foreign_links {
@@ -53,17 +57,20 @@ error_chain! {
          ToStrError(reqwest::header::ToStrError);
      }
 }
-pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(DownloadState)) {
-    
+pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(DownloadState) -> Option<DownloadStateReturn>) {
     let tor_dir = TorDirectory::from_general_options(&download_options.tor_dir_options);
     let tor_socks5 = TorSocks5::from_random_port();
     let tor_share_url = &download_options.url;
-
     cb(DownloadState::ConnectingWaitingForTor);
+    
+    start_tor_socks5(&tor_dir, &tor_socks5);
+    println!("asdasdasd");
+
     let socks5_url = tor_socks5.to_string();
     let client = reqwest::Client::builder()
         .proxy(reqwest::Proxy::all(&socks5_url).unwrap())
-        .build().unwrap();
+        .build()
+        .unwrap();
 
     let url = tor_share_url.to_url();
     loop {
@@ -84,7 +91,7 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
         cb(DownloadState::ConnectedRetrievingFileInformation);
 
         let mut result = result.unwrap();
-        let fname = if let Some(content_disposition) = result.headers().get("Content-Disposition") {
+        let file_name = if let Some(content_disposition) = result.headers().get("Content-Disposition") {
             let content_disposition: String = content_disposition.to_str().unwrap().into();
             if let Some(filename_index) = content_disposition.rfind("filename=\"") {
                 Some(
@@ -101,22 +108,56 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
             None
         };
 
-        let fname: String = fname.unwrap_or_else(|| format!("{}.file", tor_share_url.path));
-        let mut dest = File::create(&fname).unwrap();
+        let file_name: String = file_name.unwrap_or_else(|| format!("{}.file", tor_share_url.path));
+        let file_path: &Path = Path::new(&file_name);
+
+        if file_path.exists() {
+            if !file_path.is_file() {
+                cb(DownloadState::DisconnectedError("something on this path \"{}\" already exists and is not a file where we can continue the download".into()));
+                return;
+            }
+
+            let can_continue = if let Some(downloaded_state_return) = cb(DownloadState::ConnectedAskForContinue) {
+                if let DownloadStateReturn::Continue(can_continue) = downloaded_state_return {
+                    can_continue
+                } else {
+                    println!("Warning: Received a wrong state type from callback"); 
+                    false
+                }
+            } else {
+                false
+            };
+
+            if !can_continue {
+                return;
+            }
+ 
+        }
+
+
+
+        let mut dest = File::create(&file_name).unwrap();
 
         let file_size: f64 = result
             .headers()
             .get(CONTENT_LENGTH)
-            .ok_or("0").unwrap()
-            .to_str().unwrap()
+            .ok_or("0")
+            .unwrap()
+            .to_str()
+            .unwrap()
             .to_string()
             .parse::<f64>()
             .unwrap()
             / 1000000.0;
 
-        let file_information = FileInformation { name: fname, size: file_size };
+        let file_information = FileInformation {
+            name: file_name,
+            size: file_size,
+        };
 
-        cb(DownloadState::ConnectedRetrievedFileInformation(&file_information));
+        cb(DownloadState::ConnectedRetrievedFileInformation(
+            &file_information,
+        ));
 
         let mut downloaded_megabytes: f64 = 0.0;
         let mut last_write = Instant::now();
@@ -127,11 +168,11 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
             let chunk = result.chunk().await;
             if let Err(e) = chunk {
                 cb(DownloadState::DisconnectedError(e.to_string()));
-                break
+                break;
             }
             let chunk = chunk.unwrap();
             if chunk.is_none() {
-                break
+                break;
             }
             let chunk = chunk.unwrap();
             dest.write(&chunk);
@@ -149,12 +190,25 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
 
             downloaded_megabytes = downloaded_megabytes + chunk_size_as_megabyte;
             if file_size == 0.0 {
-                cb(DownloadState::ConnectedDownloading(&file_information, DownloadProgress { downloaded_megabytes, percent: -1.0, speed}));
-
+                cb(DownloadState::ConnectedDownloading(
+                    &file_information,
+                    DownloadProgress {
+                        downloaded_megabytes,
+                        percent: -1.0,
+                        speed,
+                    },
+                ));
             } else {
                 let percent = downloaded_megabytes as f32 / file_size as f32 * 100.0;
 
-                cb(DownloadState::ConnectedDownloading(&file_information, DownloadProgress { downloaded_megabytes, percent, speed}));
+                cb(DownloadState::ConnectedDownloading(
+                    &file_information,
+                    DownloadProgress {
+                        downloaded_megabytes,
+                        percent,
+                        speed,
+                    },
+                ));
             }
         }
         println!("\n");

@@ -1,13 +1,11 @@
 #![feature(str_split_once)]
-
 extern crate tempdir;
 
 mod cli;
-use cli::{CliOptions, Color, print_status_line, prompt, save_cursor_position};
+use cli::{CliOptions, Color, print_status_line, save_cursor_position};
 use structopt::StructOpt;
 
 mod tor_utils;
-use tor_utils::{TorDirectory, TorHiddenServiceConfig, TorSocks5, get_hidden_service_hostname, start_tor_hidden_service};
 
 mod tor_share_url;
 
@@ -15,7 +13,7 @@ mod share;
 use share::{ShareOptions, ShareState, share_file};
 
 mod download_file;
-use download_file::{DownloadOptions, DownloadState, DownloadStateReturn, download_file};
+use download_file::{DownloadOptions, DownloadState, download_file};
 
 async fn download(download_options: &DownloadOptions) {
 
@@ -47,39 +45,36 @@ async fn download(download_options: &DownloadOptions) {
                     format!(" {}: {}% of {}mb", file_information.name, 0, file_information.size),
                 );
             }
-            DownloadState::ConnectedDownloading(file_information, download_progress) => {
+            DownloadState::ConnectedDownloading ( file_information, download_progress ) => {
                 if download_progress.percent == -1.0 {
                     print_status_line(
                         &Color::Green,
                         format!(
                             "{}: {:.3}mb of unknown {:.3}mb/s",
-                            file_information.name,
-                            download_progress.downloaded_megabytes,
-                            download_progress.speed
+                            file_information.name, download_progress.downloaded_megabytes, download_progress.speed
                         ),
                     );
-                    return None;
+                    return
                 }
                 print_status_line(
                     &Color::Green,
                     format!(
                         "{}: {:.3}mb of {:.3}mb {:.1}% {:.3}mb/s",
-                        file_information.name,
-                        download_progress.downloaded_megabytes,
-                        file_information.size,
-                        download_progress.percent,
-                        download_progress.speed
+                        file_information.name, download_progress.downloaded_megabytes, file_information.size, download_progress.percent, download_progress.speed
                     ),
                 );
             }
-            DownloadState::ConnectedAskForContinue => {
-                return Some(DownloadStateReturn::Continue(prompt(&Color::Yellow, "Do you want to continue downloading this file? [Y/n]")));
-            }
-            DownloadState::DisconnectedError(error) => {
-                print_status_line(&Color::Red, format!("Error: {}", error));
+            DownloadState::DisconnectedError ( error ) => {
+                print_status_line(
+                    &Color::Red,
+                    format!(
+                        "Error: {}",
+                        error
+                    ),
+                );
+
             }
         };
-        None
     }).await;
 }
 
