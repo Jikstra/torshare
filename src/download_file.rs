@@ -1,9 +1,11 @@
 use reqwest;
-use std::{fs::File, time::Instant};
+use std::{fs::File, io::Seek, time::Instant};
 use std::path::Path;
 
 
 use std::io::Write;
+
+use std::io::SeekFrom;
 use std::{thread, time};
 
 use crate::{
@@ -74,7 +76,7 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
 
     let url = tor_share_url.to_url();
     loop {
-        let result = client.get(&url).send().await;
+        let result = client.head(&url).send().await;
         if let Err(e) = result {
             //println!("{}\n", e);
             let socks5_unreachable = e.to_string().contains("Proxy server unreachable");
@@ -111,7 +113,8 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
         let file_name: String = file_name.unwrap_or_else(|| format!("{}.file", tor_share_url.path));
         let file_path: &Path = Path::new(&file_name);
 
-        if file_path.exists() {
+        
+        let continue_download = if file_path.exists() {
             if !file_path.is_file() {
                 cb(DownloadState::DisconnectedError("something on this path \"{}\" already exists and is not a file where we can continue the download".into()));
                 return;
@@ -131,12 +134,21 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
             if !can_continue {
                 return;
             }
- 
-        }
+
+            true 
+        } else {
+            false
+        };
 
 
 
-        let mut dest = File::create(&file_name).unwrap();
+        let (mut dest, mut downloaded_bytes) = if continue_download {
+            let mut dest = File::open(&file_name).unwrap();
+            let continue_position: usize = dest.seek(SeekFrom::End(0)).unwrap() as usize;
+            (dest, continue_position)
+        } else {
+            (File::create(&file_name).unwrap(), 0 as usize)
+        };
 
         let file_size: f64 = result
             .headers()
@@ -147,8 +159,7 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
             .unwrap()
             .to_string()
             .parse::<f64>()
-            .unwrap()
-            / 1000000.0;
+            .unwrap();
 
         let file_information = FileInformation {
             name: file_name,
@@ -159,7 +170,34 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
             &file_information,
         ));
 
-        let mut downloaded_megabytes: f64 = 0.0;
+
+
+
+        let result = client.get(&url);
+        let result = if continue_download {
+            println!("Continuing download {}/{}", downloaded_bytes, file_information.size);
+            result.header("Content-Range", format!("bytes {}-{}/{}", downloaded_bytes, file_information.size, file_information.size))
+        } else {
+            result
+        };
+        
+        let result = result.send().await;
+        if let Err(e) = result {
+            //println!("{}\n", e);
+            let socks5_unreachable = e.to_string().contains("Proxy server unreachable");
+            if socks5_unreachable {
+                cb(DownloadState::ConnectingWaitingForProxy(&tor_socks5));
+                thread::sleep(time::Duration::from_millis(50));
+                continue;
+            } else {
+                cb(DownloadState::ConnectedWaitingForPeer);
+                thread::sleep(time::Duration::from_millis(50));
+                continue;
+            };
+        }
+        cb(DownloadState::ConnectedRetrievingFileInformation);
+        let mut result = result.unwrap();
+
         let mut last_write = Instant::now();
         // bytes per second
         let mut speed: f64 = -1.0;
@@ -186,9 +224,10 @@ pub async fn download_file(download_options: &DownloadOptions, cb: impl Fn(Downl
             } else if speed == -1.0 {
                 speed = downloaded_bytes_last_second as f64 / 1000000.0 / elapsed_time_as_secs;
             }
-            let chunk_size_as_megabyte = chunk.len() as f64 / 1000000.0;
 
-            downloaded_megabytes = downloaded_megabytes + chunk_size_as_megabyte;
+            downloaded_bytes = downloaded_bytes + chunk.len();
+
+            let downloaded_megabytes = downloaded_bytes as f64 / 1000000.0;
             if file_size == 0.0 {
                 cb(DownloadState::ConnectedDownloading(
                     &file_information,
